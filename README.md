@@ -58,5 +58,5 @@ O sistema proposto poderá incluir funcionalidades como:
 Nome | Papel
 ---- | ----
 Carlos Emanuel | Product Owner
-Gustavo Algusto | Scrum Master
+Gustavo Augusto | Scrum Master
 Bruno Santos | Desenvolvedor
