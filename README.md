@@ -6,7 +6,7 @@ Projeto Integrador I - Análise e Desenvolvimento de Sistemas (ADS) 🚀
 
 📖 Sobre o Projeto:
 
-O presente projeto foi desenvolvido em parceria com a instituição 
+O projeto foi desenvolvido em parceria com a instituição 
 Ação Social do Planalto (ASP), organização que realiza ações 
 socioeducativas voltadas para crianças e adolescentes em situação 
 de vulnerabilidade social no Distrito Federal.
