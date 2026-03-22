@@ -46,7 +46,7 @@ Conforme alinhamento técnico para garantir um sistema escalável e seguro:
 
 ## Stack Tecnológico
 * **Frontend:** React / Vite / Tailwind CSS *(A definir pela equipe)*
-* **Backend:** Node.js / Express *(A definir pela equipe)*
+* **Backend:** Java (Spring)
 * **Banco de Dados:** PostgreSQL (Relacional)
 * **Gestão e Design:** Azure DevOps (Gerenciamento Ágil), GitHub, Miro/Figma.
 
