@@ -1,4 +1,4 @@
-# 👣 Sistema de Gestão Social ASP
+# Sistema de Gestão Social ASP
 
 **Plataforma para centralização de dados, controle de atividades e automação de relatórios da ONG Ação Social do Planalto.**
 
@@ -6,7 +6,7 @@
 
 ---
 
-## 📖 Índice
+## Índice
 * [Visão Geral](#-visão-geral)
 * [Funcionalidades](#-funcionalidades-esperadas)
 * [Arquitetura e Segurança](#️-arquitetura-e-segurança)
@@ -16,7 +16,7 @@
 
 ---
 
-## 🎯 Visão Geral
+## Visão Geral
 Este projeto é desenvolvido para a **Ação Social do Planalto (ASP)**, uma instituição com 60 anos de história que acolhe crianças e adolescentes em situação de vulnerabilidade social no Distrito Federal. 
 
 Atualmente, a instituição sofre com retrabalho, pois utiliza de forma fragmentada o sistema Bússola Social, planilhas eletrônicas e o Trello, enfrentando limitações de personalização e falhas operacionais. O nosso sistema atua como uma **Fonte Única da Verdade (SSoT)**, centralizando informações em uma aplicação web para:
@@ -26,7 +26,7 @@ Atualmente, a instituição sofre com retrabalho, pois utiliza de forma fragment
 
 ---
 
-## 📊 Funcionalidades Esperadas
+## Funcionalidades Esperadas
 * **Cadastro Integrado:** Registro completo de educandos e do seu núcleo familiar, evitando dados duplicados.
 * **Gestão de Oficinas:** Criação de atividades, alocação de turmas e controle diário de presença pelos educadores.
 * **Atendimentos e Sigilo:** Registro de acompanhamentos com controle de nível de acesso, garantindo que atendimentos sensíveis da equipe técnica sejam mantidos como confidenciais.
@@ -35,7 +35,7 @@ Atualmente, a instituição sofre com retrabalho, pois utiliza de forma fragment
 
 ---
 
-## 🛡️ Arquitetura e Segurança
+## Arquitetura e Segurança
 Conforme alinhamento técnico para garantir um sistema escalável e seguro:
 * **Banco de Dados Relacional:** Estruturação lógica que conecta o educando, sua família e seu histórico de presença, evitando inconsistências.
 * **Segurança da Informação:** Criptografia de senhas, proteção contra injeção de código e registro de *logs* (rastreabilidade de ações).
@@ -44,7 +44,7 @@ Conforme alinhamento técnico para garantir um sistema escalável e seguro:
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 * **Frontend:** React / Vite / Tailwind CSS *(A definir pela equipe)*
 * **Backend:** Node.js / Express *(A definir pela equipe)*
 * **Banco de Dados:** PostgreSQL (Relacional)
@@ -53,7 +53,7 @@ Conforme alinhamento técnico para garantir um sistema escalável e seguro:
 ---
 
 
-## 👥 Equipe do Projeto
+## Equipe do Projeto
 
 Nome | Papel
 ---- | ----
