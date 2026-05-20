@@ -5,7 +5,7 @@ Read.me Versão 1.1.0 - Atualizado: 20/05/2026 - 8:45
 
 > 📄 **Documentação Completa:** Acesse nossa [Wiki](https://github.com/carlosEmanuelSS/SGS-ASP/wiki) ou [Docs](https://github.com/carlosEmanuelSS/SGS-ASP/tree/main/Docs) para ver a documentação central do projeto, incluindo Documento de Visão, Requisitos de Software, Design Thinking e Plano de Projeto.
 
-> 🌐 **Link para o protótipo versão 1.0.0:** [SISTEMA DE GESTÃO SOCIAL ASP](https://stitch.withgoogle.com/preview/14971171782062611766?node-id=b6a15dff4ace44cab18251a392aec014)  
+> 🌐 **Link para o protótipo versão 1.0.0:** [SISTEMA DE GESTÃO SOCIAL ASP](https://stitch.withgoogle.com/preview/14971171782062611766?node-id=b6a15dff4ace44cab18251a392aec014&raw=1)  
 
 ---
 
