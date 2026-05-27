@@ -1,5 +1,5 @@
 # Sistema de Gestão Social ASP 
-Readme.md Versão 1.1.0 - Atualizado: 20/05/2026 - 8:45
+README.md Versão 1.1.0 - Atualizado: 20/05/2026 - 8:45
 
 **Plataforma para centralização de dados, controle de atividades e automação de relatórios da ONG Ação Social do Planalto.**
 
