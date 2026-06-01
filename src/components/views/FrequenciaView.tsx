@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Search, ArrowLeft, Users, CheckSquare, X, ListTodo, CheckCircle2, XCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Calendar, ArrowLeft, Users, CheckSquare, X, ListTodo, CheckCircle2, XCircle } from 'lucide-react';
 
 export function FrequenciaView() {
     const [frequenciaView, setFrequenciaView] = useState<'select-class' | 'take-attendance'>('select-class');
@@ -182,7 +182,7 @@ export function FrequenciaView() {
                         </div>
 
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {activeStudentsList.map((student) => {
+                            {activeStudentsList.map((student: any) => {
                                 const status = chamada[student.id] || { presente: true, justificativa: '' };
                                 const isPresent = status.presente;
 

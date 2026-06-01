@@ -27,7 +27,7 @@ type ThemeType = 'light' | 'dark';
 
 export default function App() {
     const [activeMenu, setActiveMenu] = useState<MenuType>('dashboard');
-    const [educandosSubView, setEducandosSubView] = useState<EducandosViewType>('list');
+    const [, setEducandosSubView] = useState<EducandosViewType>('list');
     const [theme, setTheme] = useState<ThemeType>('light');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

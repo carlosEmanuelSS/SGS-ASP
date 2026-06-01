@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Download, Filter, Users, Building2, TrendingUp, AlertTriangle, Calendar as CalendarIcon, PieChart as PieChartIcon, Activity, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Filter, Users, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, AlertCircle } from 'lucide-react';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
@@ -183,7 +183,7 @@ export function RelatoriosView() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie data={demografiaData} innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value">
-                                            {demografiaData.map((entry, index) => (
+                                            {demografiaData.map((_entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
                                         </Pie>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Eye, ArrowLeft, CheckSquare, X, Edit, Trash2, AlertCircle, Users, BookOpen, Clock, Building2, Calendar, UserPlus } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, ArrowLeft, CheckSquare, X, Edit, Trash2, AlertCircle, Users, BookOpen, Building2, Calendar, UserPlus } from 'lucide-react';
 
 interface Oficina {
     id: string;

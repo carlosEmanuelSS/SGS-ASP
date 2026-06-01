@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Eye, ArrowLeft, CheckSquare, X, Lock, Unlock, FileText, Calendar, Filter, User, AlertCircle, EyeOff, ShieldAlert, Edit } from 'lucide-react';
 
 interface Atendimento {

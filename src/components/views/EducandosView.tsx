@@ -1,4 +1,4 @@
- import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Eye, ArrowLeft, Upload, FileText, Calendar, CheckSquare, X, Edit, Trash2, AlertCircle } from 'lucide-react';
 
 interface Educando {
@@ -139,37 +139,37 @@ export function EducandosView() {
             {currentView === 'list' && (
                 <EducandosList
                     data={educandosData}
-                    onView={(id) => { setSelectedId(id); setCurrentView('details'); }}
-                    onEdit={(id) => { setSelectedId(id); setCurrentView('form'); }}
-                    onDelete={(id) => setDeleteModal({ isOpen: true, id })}
+                    onView={(id: string) => { setSelectedId(id); setCurrentView('details'); }}
+                    onEdit={(id: string) => { setSelectedId(id); setCurrentView('form'); }}
+                    onDelete={(id: string) => setDeleteModal({ isOpen: true, id })}
                     onCreate={() => { setSelectedId(null); setCurrentView('form'); }}
                 />
             )}
 
             {/* === VIEW: FORM === */}
             {currentView === 'form' && (
-                <React.Fragment>
+                <>
                     <EducandoForm
                         initialData={activeEducando}
                         onBack={() => setCurrentView('list')}
-                        onSave={(data) => {
+                        onSave={(data: Educando) => {
                             if (activeEducando) atualizarEducando(data);
                             else adicionarEducando(data);
                         }}
                     />
-                </React.Fragment>
+                </>
             )}
 
             {/* === VIEW: DETAILS === */}
             {currentView === 'details' && activeEducando && (
-                <React.Fragment>
+                <>
                     <EducandosDetails
                         educando={activeEducando}
                         onBack={() => setCurrentView('list')}
                         onEdit={() => setCurrentView('form')}
                         onDelete={() => setDeleteModal({ isOpen: true, id: activeEducando.id })}
                     />
-                </React.Fragment>
+                </>
             )}
         </div>
     );
@@ -287,7 +287,7 @@ function EducandoForm({ initialData, onBack, onSave }: any) {
 
     const isPessoalValid = form.nome.trim() !== '' && form.dadosPessoais.dataNascimento !== '' && form.dadosPessoais.matriculaEscolar.trim() !== '';
     const isFamiliaValid = form.nucleoFamiliar.responsavel.trim() !== '' && form.nucleoFamiliar.grauParentesco.trim() !== '' && form.nucleoFamiliar.telefone.trim() !== '' && form.nucleoFamiliar.renda.trim() !== '';
-    const isDocsValid = true; // Checkbox and textareas are technically always "valid" even if empty unless explicitly required. But prompt says "Preenchidos". We'll assume checkbox + textarea must be filled.
+    // Checkbox and textareas are technically always "valid" even if empty unless explicitly required. But prompt says "Preenchidos". We'll assume checkbox + textarea must be filled.
     const isFormValid = isPessoalValid && isFamiliaValid && form.socialDocs.observacoes.trim() !== '';
 
     const handleSubmit = () => {
