@@ -8,26 +8,10 @@ Projeto acadêmico desenvolvido para a **Ação Social do Planalto**, uma instit
 
 ## 📁 Estrutura do Repositório
 
-```
-SGS-ASP/
-├── docs/                   # Documentação acadêmica do projeto
-│   ├── sprint1/            # Artefatos da Sprint 1 (Visão, Requisitos, Design Thinking)
-│   ├── sprint2/            # Artefatos da Sprint 2
-│   ├── evidencias/         # Evidências e registros de entregas
-│   └── MANUAL_DO_USUARIO.md
-│
-├── prototipo/              # Código-fonte do protótipo funcional
-│   ├── src/                # Componentes React e lógica da aplicação
-│   ├── index.html          # Ponto de entrada HTML
-│   ├── package.json        # Dependências e scripts do projeto
-│   ├── vite.config.ts      # Configuração do Vite (Build Tool)
-│   ├── tailwind.config.js  # Configuração do Tailwind CSS
-│   ├── tsconfig.json       # Configuração do TypeScript
-│   └── ...                 # Demais arquivos de configuração
-│
-├── README.md               # Este arquivo
-└── .gitignore
-```
+* `docs/`: documentação acadêmica do projeto;
+* `docs/sprint1/`: entregáveis da Sprint 1;
+* `docs/sprint2/`: documento técnico da Sprint 2;
+* `prototipo/`: código-fonte do protótipo funcional.
 
 ---
 
