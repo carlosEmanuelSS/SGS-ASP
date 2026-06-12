@@ -228,7 +228,7 @@ export function FrequenciaView() {
                                         </div>
 
                                         {/* Smoothly expand justification field if absent */}
-                                        <div className={`overflow-hidden transition-all duration-300 ease-in-out pl-[56px] ${!isPresent ? 'max-h-32 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}>
+                                        <div className={`overflow-hidden transition-all duration-300 ease-in-out sm:pl-[56px] pl-0 ${!isPresent ? 'max-h-32 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}>
                                             <input
                                                 type="text"
                                                 value={status.justificativa}

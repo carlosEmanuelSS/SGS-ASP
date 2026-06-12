@@ -199,8 +199,8 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit, onCancel }:
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left align-middle">
+                <div className="w-full overflow-x-auto">
+                    <table className="w-full min-w-[900px] text-sm text-left align-middle">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-200 dark:border-slate-800">
                             <tr>
                                 <th className="px-6 py-4">Data</th>
@@ -307,7 +307,7 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit, onCancel }:
                         </div>
 
                         <div className={`p-6 overflow-y-auto flex-1 space-y-6 ${detailsModal.data.status === 'cancelado' ? 'opacity-70' : ''}`}>
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div>
                                     <label className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1 block">Educando / Família</label>
                                     <p className="text-base font-bold text-slate-900 dark:text-white">{(detailsModal.data as any).studentName}</p>
@@ -326,7 +326,7 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit, onCancel }:
                             </div>
 
                             {(detailsModal.data.encaminhamento || detailsModal.data.status === 'cancelado') && (
-                                <div className="grid grid-cols-2 gap-6 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                                     {detailsModal.data.encaminhamento && (
                                         <div>
                                             <label className="text-xs uppercase tracking-wider font-bold text-indigo-800/70 dark:text-indigo-400/80 mb-1 block">Encaminhamentos</label>
@@ -460,7 +460,7 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                             )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Data <span className="text-rose-500">*</span></label>
                                 <div className="relative">
@@ -548,15 +548,15 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
 
                     </div>
 
-                    <div className="flex items-center justify-end gap-3 pt-2">
-                        {!isFormValid && <span className="text-sm text-slate-500 dark:text-slate-400 mr-auto flex items-center gap-1.5"><AlertCircle className="w-4 h-4" /> Preencha os campos vitais para salvar.</span>}
-                        <button onClick={onBack} className="px-6 py-3 font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+                        {!isFormValid && <span className="text-sm text-slate-500 dark:text-slate-400 sm:mr-auto flex items-center gap-1.5"><AlertCircle className="w-4 h-4" /> Preencha os campos vitais para salvar.</span>}
+                        <button onClick={onBack} className="w-full sm:w-auto px-6 py-3 font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors">
                             Cancelar
                         </button>
                         <button
                             onClick={() => isFormValid && onSave({ ...form })}
                             disabled={!isFormValid || isCancelled}
-                            className={`px-8 py-3 rounded-xl font-bold shadow-lg transition-all focus:ring-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 dark:shadow-indigo-900/20 focus:ring-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed`}
+                            className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all focus:ring-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 dark:shadow-indigo-900/20 focus:ring-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                             {initialData ? 'Salvar Alterações' : 'Salvar Atendimento'}
                         </button>

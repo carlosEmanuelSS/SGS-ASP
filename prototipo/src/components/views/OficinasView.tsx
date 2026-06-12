@@ -156,7 +156,7 @@ function OficinasList({ data, onView, onEdit, onDelete, onCreate }: any) {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Gestão de Oficinas e Atividades</h1>
-                <button onClick={onCreate} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors w-fit">
+                <button onClick={onCreate} className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors w-full sm:w-fit">
                     <Plus className="w-4 h-4" /> Nova Oficina
                 </button>
             </div>
@@ -169,8 +169,8 @@ function OficinasList({ data, onView, onEdit, onDelete, onCreate }: any) {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left align-middle">
+                <div className="w-full overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-sm text-left align-middle">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-200 dark:border-slate-800">
                             <tr>
                                 <th className="px-6 py-4">Nome da Oficina</th>
@@ -456,11 +456,11 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden min-h-[400px] flex flex-col">
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50">
-                    <button onClick={() => setActiveTab('matriculados')} className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'matriculados' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto no-scrollbar">
+                    <button onClick={() => setActiveTab('matriculados')} className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'matriculados' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                         Turma ({ocupadas})
                     </button>
-                    <button onClick={() => setActiveTab('info')} className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'info' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
+                    <button onClick={() => setActiveTab('info')} className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'info' ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>
                         Informações Gerais
                     </button>
                 </div>
@@ -477,8 +477,8 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
                                 </button>
                             </div>
 
-                            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                                <table className="w-full text-sm text-left align-middle">
+                            <div className="w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+                                <table className="w-full min-w-[600px] text-sm text-left align-middle">
                                     <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 border-b border-slate-200 dark:border-slate-800">
                                         <tr><th className="px-4 py-3">Nome do Educando</th><th className="px-4 py-3">Idade</th><th className="px-4 py-3">Responsável (Tel)</th><th className="px-4 py-3 text-right">Ação</th></tr>
                                     </thead>

@@ -95,7 +95,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </div>
 
             {/* Metrics Cards (Dynamic calculations) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {[
                     { label: 'Educandos Ativos', value: metricas.totalAtivos, icon: Users, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
                     { label: 'Lista de Espera', value: metricas.totalListaEspera, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10' },
@@ -118,16 +118,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </div>
 
             {/* Quick Actions */}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3">
                 <button
                     onClick={() => onNavigate('educandos', 'add')}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-sm"
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-sm w-full sm:w-auto"
                 >
                     <Plus className="w-4 h-4" /> Novo Educando
                 </button>
                 <button
                     onClick={() => onNavigate('dashboard')} // Fallback mock 
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold transition-colors shadow-sm"
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold transition-colors shadow-sm w-full sm:w-auto"
                 >
                     <TrendingUp className="w-4 h-4" /> Relatório Completo
                 </button>
@@ -135,17 +135,20 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             {/* Intelligent Alert (Condicional) */}
             {alunosComFaltas > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-5 flex items-center gap-5 shadow-sm animate-in zoom-in-95">
-                    <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full text-amber-600 dark:text-amber-400 shrink-0">
-                        <AlertTriangle className="w-6 h-6 animate-pulse" />
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 shadow-sm animate-in zoom-in-95">
+                    <div className="flex items-center gap-3 sm:block">
+                        <div className="p-3 bg-amber-100 dark:bg-amber-500/20 rounded-full text-amber-600 dark:text-amber-400 shrink-0">
+                            <AlertTriangle className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <h3 className="sm:hidden text-amber-800 dark:text-amber-300 font-bold text-lg mb-0">Atenção Crítica de Evasão</h3>
                     </div>
-                    <div>
-                        <h3 className="text-amber-800 dark:text-amber-300 font-bold text-lg mb-1">Atenção Crítica de Evasão</h3>
+                    <div className="flex-1">
+                        <h3 className="hidden sm:block text-amber-800 dark:text-amber-300 font-bold text-lg mb-1">Atenção Crítica de Evasão</h3>
                         <p className="text-amber-700 dark:text-amber-400/90 text-sm font-medium">
                             <strong className="text-amber-900 dark:text-amber-200">{alunosComFaltas} educandos</strong> estão com faltas recorrentes não justificadas e precisam de acompanhamento do Serviço Social.
                         </p>
                     </div>
-                    <button onClick={() => onNavigate('frequencia')} className="hidden sm:block ml-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-sm shadow-sm transition-colors">
+                    <button onClick={() => onNavigate('frequencia')} className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-sm shadow-sm transition-colors mt-2 sm:mt-0 whitespace-nowrap">
                         Ver Frequências &rarr;
                     </button>
                 </div>
@@ -154,26 +157,28 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             {/* Bottom Panel */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
                 {/* Dynamic Chart */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col h-[400px]">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col h-[400px]">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-bold text-slate-900 dark:text-white text-lg">Ocupação por Oficina (Tempo Real)</h3>
-                        <span className="flex items-center gap-1 text-xs px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded font-bold uppercase tracking-wider">
+                        <span className="hidden sm:flex items-center gap-1 text-xs px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded font-bold uppercase tracking-wider">
                             Database Map
                         </span>
                     </div>
 
                     {chartData.length > 0 ? (
-                        <div className="flex-1 min-h-0">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
-                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: '#94a3b8', opacity: 0.1 }} />
-                                    <Bar dataKey="matriculados" stackId="a" name="Matriculados" fill="#6366f1" radius={[0, 0, 4, 4]} barSize={32} />
-                                    <Bar dataKey="vagasRestantes" stackId="a" name="Vagas Livres" fill="#10b981" radius={[4, 4, 0, 0]} barSize={32} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="flex-1 min-h-0 w-full overflow-x-auto">
+                            <div className="min-w-[400px] h-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#94a3b8', opacity: 0.1 }} />
+                                        <Bar dataKey="matriculados" stackId="a" name="Matriculados" fill="#6366f1" radius={[0, 0, 4, 4]} barSize={32} />
+                                        <Bar dataKey="vagasRestantes" stackId="a" name="Vagas Livres" fill="#10b981" radius={[4, 4, 0, 0]} barSize={32} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-slate-500 font-medium border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-900/50">

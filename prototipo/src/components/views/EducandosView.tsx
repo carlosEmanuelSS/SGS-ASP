@@ -186,13 +186,13 @@ function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Gestão de Educandos</h1>
-                <button onClick={onCreate} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors w-fit">
+                <button onClick={onCreate} className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm transition-colors w-full sm:w-fit">
                     <Plus className="w-4 h-4" /> Novo Educando
                 </button>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto no-scrollbar">
                     {[
                         { id: 'todos', label: 'Todos' },
                         { id: 'ativo', label: 'Ativos' },
@@ -213,14 +213,14 @@ function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
                 </div>
 
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900">
-                    <div className="relative flex-1 max-w-sm">
+                    <div className="relative flex-1 w-full sm:max-w-sm">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Pesquisar por nome..." className="pl-9 pr-4 py-2 w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none dark:text-slate-200" />
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left align-middle">
+                <div className="w-full overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-sm text-left align-middle">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-medium border-b border-slate-200 dark:border-slate-800">
                             <tr>
                                 <th className="px-6 py-4">Nome</th>
@@ -333,7 +333,7 @@ function EducandoForm({ initialData, onBack, onSave }: any) {
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50">
+                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto no-scrollbar">
                     {[
                         { id: 'pessoal', label: 'Pessoal', valid: isPessoalValid },
                         { id: 'familia', label: 'Família', valid: isFamiliaValid },
@@ -550,11 +550,11 @@ function EducandosDetails({ educando, onBack, onEdit, onDelete, onAtivar }: { ed
 
                     {/* Profile Content Tabs */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
-                        <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50">
-                            <button onClick={() => setActiveTab('dados')} className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'dados' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                        <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto no-scrollbar">
+                            <button onClick={() => setActiveTab('dados')} className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'dados' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                                 Dados Cadastrais
                             </button>
-                            <button onClick={() => setActiveTab('historico')} className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'historico' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                            <button onClick={() => setActiveTab('historico')} className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'historico' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                                 Histórico & Atendimentos
                             </button>
                         </div>

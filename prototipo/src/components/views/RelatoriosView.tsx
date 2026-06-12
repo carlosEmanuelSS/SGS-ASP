@@ -115,7 +115,7 @@ export function RelatoriosView() {
             </div>
 
             {/* TAB NAVIGATION */}
-            <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl self-start overflow-x-auto w-full max-w-3xl border border-slate-200 dark:border-slate-700">
+            <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl self-start overflow-x-auto no-scrollbar w-full max-w-3xl border border-slate-200 dark:border-slate-700">
                 <button onClick={() => setActiveTab('geral')} className={`flex items-center justify-center gap-2 flex-1 py-2.5 px-4 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'geral' ? 'bg-white shadow-md text-indigo-700 dark:bg-slate-700 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><PieChartIcon className="w-4 h-4" /> Visão Geral</button>
                 <button onClick={() => setActiveTab('frequencia')} className={`flex items-center justify-center gap-2 flex-1 py-2.5 px-4 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'frequencia' ? 'bg-white shadow-md text-indigo-700 dark:bg-slate-700 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><AlertTriangle className="w-4 h-4" /> Frequência e Evasão</button>
                 <button onClick={() => setActiveTab('atendimentos')} className={`flex items-center justify-center gap-2 flex-1 py-2.5 px-4 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'atendimentos' ? 'bg-white shadow-md text-indigo-700 dark:bg-slate-700 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><Activity className="w-4 h-4" /> Atendimentos Téc.</button>
@@ -225,8 +225,8 @@ export function RelatoriosView() {
                                 <p className="text-sm text-rose-700/70 dark:text-rose-400/80">Alerta Técnico: Mais de 3 faltas consecutivas. Risco de Evasão detetado.</p>
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
+                        <div className="w-full overflow-x-auto">
+                            <table className="w-full min-w-[700px] text-sm text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                                     <tr>
                                         <th className="px-6 py-4">Educando</th>
@@ -287,8 +287,8 @@ export function RelatoriosView() {
                                 <h3 className="text-base font-bold text-slate-800 dark:text-white">Últimos Encaminhamentos Externos</h3>
                                 <div className="text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 px-3 py-1 rounded-lg">Dados Auditáveis</div>
                             </div>
-                            <div className="overflow-x-auto flex-1">
-                                <table className="w-full text-sm text-left">
+                            <div className="w-full overflow-x-auto flex-1">
+                                <table className="w-full min-w-[700px] text-sm text-left">
                                     <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                                         <tr>
                                             <th className="px-6 py-4">Data</th>

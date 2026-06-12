@@ -146,7 +146,7 @@ export default function App() {
                     </div>
                 </header>
 
-                <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-slate-950">
                     {activeMenu === 'dashboard' && <DashboardView onNavigate={(menu, view) => handleNavigate(menu as MenuType, view as EducandosViewType)} />}
                     {activeMenu === 'educandos' && <EducandosView />}
                     {activeMenu === 'oficinas' && <OficinasView />}
