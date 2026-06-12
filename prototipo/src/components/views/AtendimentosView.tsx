@@ -1,72 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Eye, ArrowLeft, CheckSquare, X, Lock, Unlock, FileText, Calendar, Filter, User, AlertCircle, EyeOff, ShieldAlert, Edit } from 'lucide-react';
-
-interface Atendimento {
-    id: string;
-    data: string;
-    educandoId: string;
-    profissional: string;
-    tipo: string;
-    descricao: string;
-    encaminhamento: string;
-    status: 'Realizado' | 'Em Acompanhamento' | 'Finalizado' | 'Cancelado (Erro de Registro)';
-    nivelAcesso: 'Público' | 'Confidencial';
-}
+import { Search, Plus, Eye, ArrowLeft, CheckSquare, X, Lock, Unlock, FileText, Calendar, Filter, User, AlertCircle, EyeOff, ShieldAlert, Edit, Ban } from 'lucide-react';
+import { storageService } from '../../services/storage';
+import { businessRules } from '../../services/businessRules';
+import { Atendimento, Educando, TipoAtendimento, StatusAtendimento } from '../../types/models';
 
 export function AtendimentosView() {
     const [currentView, setCurrentView] = useState<'list' | 'form'>('list');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
 
-    const [globalEducandos, setGlobalEducandos] = useState<any[]>([]);
+    const [globalEducandos, setGlobalEducandos] = useState<Educando[]>([]);
+    const [atendimentosData, setAtendimentosData] = useState<Atendimento[]>([]);
+
+    const refreshData = () => {
+        setGlobalEducandos(storageService.getEducandos().filter(e => e.status === 'ativo'));
+        setAtendimentosData(storageService.getAtendimentos());
+    };
+
     useEffect(() => {
-        const savedEducandos = localStorage.getItem('sgs_educandos_db');
-        if (savedEducandos) setGlobalEducandos(JSON.parse(savedEducandos));
+        refreshData();
     }, [currentView]);
-
-    const [atendimentosData, setAtendimentosData] = useState<Atendimento[]>(() => {
-        const saved = localStorage.getItem('sgs_atendimentos_db');
-        if (saved) return JSON.parse(saved);
-        return [
-            {
-                id: '1',
-                data: new Date().toISOString().split('T')[0],
-                educandoId: '1', // Mock Carlos
-                profissional: 'Ana Silva - Assistente Social',
-                tipo: 'Orientação Familiar',
-                descricao: 'Família orientada sobre acesso a benefícios.',
-                encaminhamento: 'CRAS Norte',
-                status: 'Realizado',
-                nivelAcesso: 'Público'
-            },
-            {
-                id: '12399',
-                data: '2023-11-01',
-                educandoId: '1',
-                profissional: 'Ana Silva - Assistente Social',
-                tipo: 'Visita Domiciliar',
-                descricao: 'Visita cancelada.',
-                encaminhamento: '',
-                status: 'Cancelado (Erro de Registro)',
-                nivelAcesso: 'Público'
-            },
-            {
-                id: '2',
-                data: '2023-10-15',
-                educandoId: '2', // Mock Ana
-                profissional: 'Dr. Marcos - Psicólogo',
-                tipo: 'Escuta Psicológica',
-                descricao: 'Relato sensível omitido.',
-                encaminhamento: 'CAPS',
-                status: 'Em Acompanhamento',
-                nivelAcesso: 'Confidencial'
-            }
-        ];
-    });
-
-    useEffect(() => {
-        localStorage.setItem('sgs_atendimentos_db', JSON.stringify(atendimentosData));
-    }, [atendimentosData]);
 
     const showToast = (msg: string) => {
         setToast({ show: true, msg });
@@ -75,16 +28,39 @@ export function AtendimentosView() {
 
     const handleSave = (atendimento: Atendimento) => {
         if (selectedId) {
-            setAtendimentosData(atendimentosData.map(a => a.id === atendimento.id ? atendimento : a));
+            const atualizados = atendimentosData.map(a => a.id === atendimento.id ? { ...atendimento, updatedAt: new Date().toISOString() } : a);
+            storageService.saveAtendimentos(atualizados);
             showToast('Atendimento atualizado com sucesso!');
         } else {
-            setAtendimentosData([atendimento, ...atendimentosData]);
+            const novos = [...atendimentosData, { ...atendimento, createdAt: new Date().toISOString() }];
+            storageService.saveAtendimentos(novos);
             showToast('Atendimento registrado com sucesso no prontuário!');
         }
         setCurrentView('list');
     };
 
+    const handleCancel = (id: string, motivo: string) => {
+        businessRules.cancelarAtendimento(id, motivo);
+        refreshData();
+        showToast('Atendimento cancelado com sucesso.');
+    }
+
     const activeAtendimento = useMemo(() => atendimentosData.find(a => a.id === selectedId), [atendimentosData, selectedId]);
+
+    // Regra: Bloquear acesso se não houver educandos ativos
+    if (globalEducandos.length === 0 && currentView === 'list') {
+        return (
+            <div className="animate-in fade-in flex flex-col items-center justify-center h-full text-center p-8">
+                <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full mb-6">
+                    <User className="w-12 h-12 text-slate-400 dark:text-slate-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Nenhum educando ativo cadastrado</h2>
+                <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8">
+                    Cadastre ou ative um educando antes de registrar atendimentos. Os atendimentos técnicos exigem vínculo obrigatório.
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="animate-in fade-in duration-300 relative h-full flex flex-col">
@@ -102,6 +78,7 @@ export function AtendimentosView() {
                     globalEducandos={globalEducandos}
                     onCreate={() => { setSelectedId(null); setCurrentView('form') }}
                     onEdit={(id: string) => { setSelectedId(id); setCurrentView('form') }}
+                    onCancel={handleCancel}
                 />
             )}
 
@@ -120,15 +97,16 @@ export function AtendimentosView() {
 // ----------------------------------------------------
 // SUB-COMPONENT: LIST
 // ----------------------------------------------------
-function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
+function AtendimentosList({ data, globalEducandos, onCreate, onEdit, onCancel }: any) {
     const [searchName, setSearchName] = useState('');
     const [filterAcesso, setFilterAcesso] = useState('Todos');
     const [detailsModal, setDetailsModal] = useState<{ isOpen: boolean, data: Atendimento | null }>({ isOpen: false, data: null });
+    const [cancelModal, setCancelModal] = useState<{ isOpen: boolean, id: string | null, motivo: string }>({ isOpen: false, id: null, motivo: '' });
 
     const joinedData = useMemo(() => {
         return data.map((atendimento: Atendimento) => {
-            const student = globalEducandos.find((e: any) => e.id === atendimento.educandoId);
-            return { ...atendimento, studentName: student ? student.nome : 'Educando Removido' };
+            const student = globalEducandos.find((e: Educando) => e.id === atendimento.educandoId);
+            return { ...atendimento, studentName: student ? student.nome : 'Educando Removido/Inativo' };
         });
     }, [data, globalEducandos]);
 
@@ -146,15 +124,38 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
         return `${d}/${m}/${y}`;
     };
 
-    const getStatusBadge = (status: string) => {
+    const mapTipoLegivel = (tipo: TipoAtendimento) => {
+        const map: Record<string, string> = {
+            'psicologico': 'Psicológico',
+            'social': 'Social',
+            'visita_domiciliar': 'Visita Domiciliar',
+            'encaminhamento': 'Encaminhamento',
+            'outro': 'Outro'
+        };
+        return map[tipo] || tipo;
+    };
+
+    const getStatusBadge = (status: StatusAtendimento) => {
         switch (status) {
-            case 'Realizado': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
-            case 'Em Acompanhamento': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-800';
-            case 'Finalizado': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
-            case 'Cancelado (Erro de Registro)': return 'bg-slate-100 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 border dashed border-slate-300 dark:border-slate-600';
+            case 'ativo': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
+            case 'cancelado': return 'bg-slate-100 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 border dashed border-slate-300 dark:border-slate-600';
             default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
         }
     };
+
+    if (data.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
+                <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full mb-2">
+                    <FileText className="w-12 h-12 text-slate-400 dark:text-slate-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Nenhum atendimento registrado até o momento.</h2>
+                <button onClick={onCreate} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 transition-all mt-4">
+                    <Plus className="w-5 h-5" /> Registrar Primeiro Atendimento
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
@@ -191,8 +192,9 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                             className="pl-9 pr-4 py-2.5 w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none dark:text-slate-200 shadow-sm appearance-none"
                         >
                             <option value="Todos">Nível de Acesso (Todos)</option>
-                            <option value="Público">Somente Públicos</option>
-                            <option value="Confidencial">Somente Confidenciais</option>
+                            <option value="publico">Somente Públicos</option>
+                            <option value="confidencial">Somente Confidenciais</option>
+                            <option value="restrito">Somente Restritos</option>
                         </select>
                     </div>
                 </div>
@@ -212,9 +214,9 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                             {filtered.map((row: any) => {
-                                const isConfidential = row.nivelAcesso === 'Confidencial';
+                                const isConfidential = row.nivelAcesso === 'confidencial';
                                 const canView = !isConfidential || row.profissional === loggedProfessional;
-                                const isCancelled = row.status === 'Cancelado (Erro de Registro)';
+                                const isCancelled = row.status === 'cancelado';
 
                                 return (
                                     <tr key={row.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${isCancelled ? 'bg-slate-50/50 dark:bg-slate-900/10' : ''}`}>
@@ -227,19 +229,19 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                                                 <span className={`font-bold line-clamp-1 ${isCancelled ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300 dark:decoration-slate-700' : 'text-slate-900 dark:text-slate-200'}`}>{row.studentName}</span>
                                             </div>
                                         </td>
-                                        <td className={`px-6 py-4 font-medium ${isCancelled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-600 dark:text-slate-400'}`}>{row.tipo}</td>
+                                        <td className={`px-6 py-4 font-medium ${isCancelled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-600 dark:text-slate-400'}`}>{mapTipoLegivel(row.tipo)}</td>
                                         <td className={`px-6 py-4 hidden md:table-cell ${isCancelled ? 'text-slate-400/70 dark:text-slate-600' : 'text-slate-500 dark:text-slate-400'}`}>{row.profissional}</td>
                                         <td className="px-6 py-4">
-                                            <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold tracking-wide ${getStatusBadge(row.status)}`}>{row.status}</span>
+                                            <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase ${getStatusBadge(row.status)}`}>{row.status}</span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {isConfidential ? (
-                                                <div className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide border ${isCancelled ? 'bg-rose-50 border-rose-100 text-rose-300 dark:bg-rose-950/20 dark:border-rose-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'}`}>
+                                                <div className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide border uppercase ${isCancelled ? 'bg-rose-50 border-rose-100 text-rose-300 dark:bg-rose-950/20 dark:border-rose-900/30' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'}`}>
                                                     <Lock className="w-3 h-3" /> Confidencial
                                                 </div>
                                             ) : (
-                                                <div className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide border ${isCancelled ? 'bg-sky-50 border-sky-100 text-sky-400 dark:bg-sky-950/20 dark:border-sky-900/30' : 'bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-200 dark:border-sky-500/20'}`}>
-                                                    <Unlock className="w-3 h-3" /> Público
+                                                <div className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide border uppercase ${isCancelled ? 'bg-sky-50 border-sky-100 text-sky-400 dark:bg-sky-950/20 dark:border-sky-900/30' : 'bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-200 dark:border-sky-500/20'}`}>
+                                                    <Unlock className="w-3 h-3" /> {row.nivelAcesso}
                                                 </div>
                                             )}
                                         </td>
@@ -253,21 +255,33 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                                                 >
                                                     {canView ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                                 </button>
-                                                <button
-                                                    onClick={() => canView && onEdit(row.id)}
-                                                    disabled={!canView}
-                                                    title="Editar Atendimento"
-                                                    className={`p-2 rounded-lg transition-all ${canView ? 'text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10' : 'text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-50'}`}
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
+                                                {!isCancelled && (
+                                                    <button
+                                                        onClick={() => canView && onEdit(row.id)}
+                                                        disabled={!canView}
+                                                        title="Editar Atendimento"
+                                                        className={`p-2 rounded-lg transition-all ${canView ? 'text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10' : 'text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-50'}`}
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {!isCancelled && (
+                                                    <button
+                                                        onClick={() => canView && setCancelModal({ isOpen: true, id: row.id, motivo: '' })}
+                                                        disabled={!canView}
+                                                        title="Cancelar Atendimento"
+                                                        className={`p-2 rounded-lg transition-all ${canView ? 'text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10' : 'text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-50'}`}
+                                                    >
+                                                        <Ban className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 )
                             })}
                             {filtered.length === 0 && (
-                                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-medium">Nenhum atendimento encontrado com os filtros atuais.</td></tr>
+                                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500 font-medium">Nenhum atendimento encontrado.</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -278,12 +292,12 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
             {detailsModal.isOpen && detailsModal.data && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] animate-in zoom-in-95">
-                        <div className={`p-6 border-b flex justify-between items-start rounded-t-2xl ${detailsModal.data.nivelAcesso === 'Confidencial' ? 'bg-rose-50 border-rose-100 dark:bg-rose-950/30 dark:border-rose-900/50' : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-800'}`}>
+                        <div className={`p-6 border-b flex justify-between items-start rounded-t-2xl ${detailsModal.data.nivelAcesso === 'confidencial' ? 'bg-rose-50 border-rose-100 dark:bg-rose-950/30 dark:border-rose-900/50' : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-800'}`}>
                             <div>
                                 <div className="flex items-center gap-3 mb-2">
                                     <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">Detalhes do Atendimento</h2>
-                                    {detailsModal.data.nivelAcesso === 'Confidencial' && <span className="bg-rose-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1"><Lock className="w-3 h-3" /> Sigiloso</span>}
-                                    {detailsModal.data.status === 'Cancelado (Erro de Registro)' && <span className="bg-slate-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Cancelado</span>}
+                                    {detailsModal.data.nivelAcesso === 'confidencial' && <span className="bg-rose-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1"><Lock className="w-3 h-3" /> Sigiloso</span>}
+                                    {detailsModal.data.status === 'cancelado' && <span className="bg-slate-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Cancelado</span>}
                                 </div>
                                 <p className="text-sm font-medium text-slate-600 dark:text-slate-400 flex items-center gap-2">
                                     <Calendar className="w-4 h-4" /> Realizado em {formatDateBR(detailsModal.data.data)} por {detailsModal.data.profissional}
@@ -292,7 +306,7 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                             <button onClick={() => setDetailsModal({ isOpen: false, data: null })} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors bg-white dark:bg-slate-800 rounded-full shadow-sm"><X className="w-5 h-5" /></button>
                         </div>
 
-                        <div className={`p-6 overflow-y-auto flex-1 space-y-6 ${detailsModal.data.status === 'Cancelado (Erro de Registro)' ? 'opacity-70' : ''}`}>
+                        <div className={`p-6 overflow-y-auto flex-1 space-y-6 ${detailsModal.data.status === 'cancelado' ? 'opacity-70' : ''}`}>
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
                                     <label className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1 block">Educando / Família</label>
@@ -300,7 +314,7 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                                 </div>
                                 <div>
                                     <label className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1 block">Tipo de Atendimento</label>
-                                    <p className="text-base font-medium text-slate-800 dark:text-slate-200">{detailsModal.data.tipo}</p>
+                                    <p className="text-base font-medium text-slate-800 dark:text-slate-200">{mapTipoLegivel(detailsModal.data.tipo)}</p>
                                 </div>
                             </div>
 
@@ -311,7 +325,7 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                                 </div>
                             </div>
 
-                            {(detailsModal.data.encaminhamento || detailsModal.data.status) && (
+                            {(detailsModal.data.encaminhamento || detailsModal.data.status === 'cancelado') && (
                                 <div className="grid grid-cols-2 gap-6 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                                     {detailsModal.data.encaminhamento && (
                                         <div>
@@ -319,12 +333,34 @@ function AtendimentosList({ data, globalEducandos, onCreate, onEdit }: any) {
                                             <p className="font-bold text-indigo-900 dark:text-indigo-300">{detailsModal.data.encaminhamento}</p>
                                         </div>
                                     )}
-                                    <div>
-                                        <label className="text-xs uppercase tracking-wider font-bold text-indigo-800/70 dark:text-indigo-400/80 mb-1 block">Status</label>
-                                        <p className={`font-bold ${detailsModal.data.status === 'Cancelado (Erro de Registro)' ? 'text-rose-600 dark:text-rose-400' : 'text-indigo-900 dark:text-indigo-300'}`}>{detailsModal.data.status}</p>
-                                    </div>
+                                    {detailsModal.data.status === 'cancelado' && (
+                                        <div>
+                                            <label className="text-xs uppercase tracking-wider font-bold text-rose-800/70 dark:text-rose-400/80 mb-1 block">Motivo Cancelamento</label>
+                                            <p className="font-bold text-rose-900 dark:text-rose-300">{detailsModal.data.motivoCancelamento || 'Não informado'}</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CANCEL MODAL */}
+            {cancelModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95">
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-rose-600">Cancelar Atendimento</h2>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Esta ação não excluirá o registro, mas ele será marcado como cancelado e não entrará mais nos relatórios de atendimentos realizados.</p>
+                        <textarea
+                            value={cancelModal.motivo}
+                            onChange={(e) => setCancelModal({ ...cancelModal, motivo: e.target.value })}
+                            placeholder="Motivo do cancelamento (opcional)..."
+                            className="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl mb-6 text-sm dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 resize-none min-h-[100px]"
+                        />
+                        <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => setCancelModal({ isOpen: false, id: null, motivo: '' })} className="px-4 py-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">Sair</button>
+                            <button onClick={() => { onCancel(cancelModal.id, cancelModal.motivo); setCancelModal({ isOpen: false, id: null, motivo: '' }); }} className="px-4 py-2 font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-lg transition-all">Confirmar Cancelamento</button>
                         </div>
                     </div>
                 </div>
@@ -346,19 +382,19 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
         data: today,
         educandoId: '',
         profissional: defaultProfissional,
-        tipo: 'Orientação Familiar',
+        tipo: 'social',
         descricao: '',
         encaminhamento: '',
-        status: 'Realizado',
-        nivelAcesso: 'Público'
+        status: 'ativo',
+        nivelAcesso: 'publico'
     });
 
-    const initStudent = globalEducandos.find((e: any) => e.id === form.educandoId);
+    const initStudent = globalEducandos.find((e: Educando) => e.id === form.educandoId);
     const [searchEdu, setSearchEdu] = useState(initStudent ? initStudent.nome : '');
     const [showDropdown, setShowDropdown] = useState(false);
 
     const filteredStudents = useMemo(() => {
-        return globalEducandos.filter((e: any) => e.nome.toLowerCase().includes(searchEdu.toLowerCase())).slice(0, 5);
+        return globalEducandos.filter((e: Educando) => e.nome.toLowerCase().includes(searchEdu.toLowerCase())).slice(0, 5);
     }, [globalEducandos, searchEdu]);
 
     const handleSelectStudent = (id: string, name: string) => {
@@ -367,8 +403,8 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
         setShowDropdown(false);
     };
 
-    const isFormValid = form.data !== '' && form.educandoId !== '' && form.tipo !== '' && form.descricao.trim().length > 5;
-    const isCancelled = form.status === 'Cancelado (Erro de Registro)';
+    const isFormValid = form.data !== '' && form.educandoId !== '' && form.descricao.trim().length > 5;
+    const isCancelled = form.status === 'cancelado';
 
     return (
         <div className="max-w-6xl mx-auto w-full space-y-6 animate-in fade-in pb-12">
@@ -402,12 +438,13 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                                     onFocus={() => setShowDropdown(true)}
                                     placeholder="Buscar pelo nome do educando..."
                                     className="pl-9 pr-4 py-3 w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-200 shadow-sm transition-all"
+                                    disabled={!!initialData}
                                 />
                             </div>
 
-                            {showDropdown && searchEdu.trim() !== '' && (
+                            {showDropdown && searchEdu.trim() !== '' && !initialData && (
                                 <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50 animate-in fade-in slide-in-from-top-2">
-                                    {filteredStudents.length > 0 ? filteredStudents.map((s: any) => (
+                                    {filteredStudents.length > 0 ? filteredStudents.map((s: Educando) => (
                                         <button
                                             key={s.id}
                                             onClick={() => handleSelectStudent(s.id, s.nome)}
@@ -417,7 +454,7 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                                             <p className="text-xs text-slate-500 dark:text-slate-400">{s.nucleoFamiliar?.responsavel}</p>
                                         </button>
                                     )) : (
-                                        <div className="p-4 text-sm text-slate-500 text-center">Nenhum educando encontrado.</div>
+                                        <div className="p-4 text-sm text-slate-500 text-center">Nenhum educando ativo encontrado.</div>
                                     )}
                                 </div>
                             )}
@@ -433,23 +470,21 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Status <span className="text-rose-500">*</span></label>
-                                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as any })} className={`w-full px-4 py-3 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm focus:border-indigo-500 focus:ring-2 outline-none dark:text-slate-200 shadow-sm appearance-none cursor-pointer ${isCancelled ? 'text-red-600 font-bold border-red-300' : ''}`}>
-                                    <option value="Realizado">Realizado</option>
-                                    <option value="Em Acompanhamento">Em Acompanhamento</option>
-                                    <option value="Finalizado">Finalizado</option>
-                                    <option value="Cancelado (Erro de Registro)">Cancelado (Erro de Reg.)</option>
+                                <select value={form.status} disabled className={`w-full px-4 py-3 border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 rounded-xl text-sm focus:border-indigo-500 outline-none dark:text-slate-400 shadow-sm appearance-none cursor-not-allowed ${isCancelled ? 'text-rose-600 font-bold border-rose-300' : ''}`}>
+                                    <option value="ativo">Ativo</option>
+                                    <option value="cancelado">Cancelado</option>
                                 </select>
                             </div>
                         </div>
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Tipo de Atendimento <span className="text-rose-500">*</span></label>
-                            <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm focus:border-indigo-500 focus:ring-2 outline-none dark:text-slate-200 shadow-sm appearance-none cursor-pointer">
-                                <option value="Orientação Familiar">Orientação Familiar</option>
-                                <option value="Visita Domiciliar">Visita Domiciliar</option>
-                                <option value="Escuta Psicológica">Escuta Psicológica</option>
-                                <option value="Atendimento Individual">Atendimento Individual</option>
-                                <option value="Atendimento Coletivo">Atendimento Coletivo</option>
+                            <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value as TipoAtendimento })} className="w-full px-4 py-3 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm focus:border-indigo-500 focus:ring-2 outline-none dark:text-slate-200 shadow-sm appearance-none cursor-pointer">
+                                <option value="social">Social</option>
+                                <option value="psicologico">Psicológico</option>
+                                <option value="visita_domiciliar">Visita Domiciliar</option>
+                                <option value="encaminhamento">Encaminhamento</option>
+                                <option value="outro">Outro</option>
                             </select>
                         </div>
 
@@ -492,18 +527,18 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                             <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4"><ShieldAlert className="w-5 h-5 text-indigo-500" /> Regra de Sigilo e Nível de Acesso <span className="text-rose-500">*</span></label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                                <label className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col gap-2 ${form.nivelAcesso === 'Público' ? 'bg-sky-50 border-sky-500 dark:bg-sky-500/10 dark:border-sky-500 shadow-md' : 'bg-white border-slate-200 hover:border-sky-300 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                <label className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col gap-2 ${form.nivelAcesso === 'publico' ? 'bg-sky-50 border-sky-500 dark:bg-sky-500/10 dark:border-sky-500 shadow-md' : 'bg-white border-slate-200 hover:border-sky-300 dark:bg-slate-800 dark:border-slate-700'}`}>
                                     <div className="flex items-center justify-between">
                                         <span className="font-bold flex items-center gap-2 text-sky-900 dark:text-sky-300"><Unlock className="w-5 h-5" /> Público</span>
-                                        <input type="radio" name="acesso" checked={form.nivelAcesso === 'Público'} onChange={() => !isCancelled && setForm({ ...form, nivelAcesso: 'Público' })} disabled={isCancelled} className="w-5 h-5 text-sky-600 focus:ring-sky-500 rounded-full border-slate-300 cursor-pointer" />
+                                        <input type="radio" name="acesso" checked={form.nivelAcesso === 'publico'} onChange={() => !isCancelled && setForm({ ...form, nivelAcesso: 'publico' })} disabled={isCancelled} className="w-5 h-5 text-sky-600 focus:ring-sky-500 rounded-full border-slate-300 cursor-pointer" />
                                     </div>
                                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium mt-1">Visível para toda a equipe. Uso geral e administrativo.</p>
                                 </label>
 
-                                <label className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col gap-2 ${form.nivelAcesso === 'Confidencial' ? 'bg-rose-50 border-rose-500 dark:bg-rose-500/10 dark:border-rose-500 shadow-md' : 'bg-white border-slate-200 hover:border-rose-300 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                <label className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col gap-2 ${form.nivelAcesso === 'confidencial' ? 'bg-rose-50 border-rose-500 dark:bg-rose-500/10 dark:border-rose-500 shadow-md' : 'bg-white border-slate-200 hover:border-rose-300 dark:bg-slate-800 dark:border-slate-700'}`}>
                                     <div className="flex items-center justify-between">
                                         <span className="font-bold flex items-center gap-2 text-rose-800 dark:text-rose-300"><Lock className="w-5 h-5" /> Confidencial</span>
-                                        <input type="radio" name="acesso" checked={form.nivelAcesso === 'Confidencial'} onChange={() => !isCancelled && setForm({ ...form, nivelAcesso: 'Confidencial' })} disabled={isCancelled} className="w-5 h-5 text-rose-600 focus:ring-rose-500 rounded-full border-slate-300 cursor-pointer" />
+                                        <input type="radio" name="acesso" checked={form.nivelAcesso === 'confidencial'} onChange={() => !isCancelled && setForm({ ...form, nivelAcesso: 'confidencial' })} disabled={isCancelled} className="w-5 h-5 text-rose-600 focus:ring-rose-500 rounded-full border-slate-300 cursor-pointer" />
                                     </div>
                                     <p className="text-xs text-rose-700/80 dark:text-rose-300/80 leading-relaxed font-medium mt-1">Registro sigiloso restrito à Equipe Técnica validada.</p>
                                 </label>
@@ -520,10 +555,10 @@ function AtendimentoForm({ initialData, globalEducandos, onBack, onSave }: any) 
                         </button>
                         <button
                             onClick={() => isFormValid && onSave({ ...form })}
-                            disabled={!isFormValid}
-                            className={`px-8 py-3 rounded-xl font-bold shadow-lg transition-all focus:ring-4 ${isCancelled ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200 dark:shadow-rose-900/20 focus:ring-rose-100' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 dark:shadow-indigo-900/20 focus:ring-indigo-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                            disabled={!isFormValid || isCancelled}
+                            className={`px-8 py-3 rounded-xl font-bold shadow-lg transition-all focus:ring-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 dark:shadow-indigo-900/20 focus:ring-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                            {isCancelled ? 'Invalidar Registro' : (initialData ? 'Salvar Alterações' : 'Salvar Atendimento')}
+                            {initialData ? 'Salvar Alterações' : 'Salvar Atendimento'}
                         </button>
                     </div>
                 </div>

@@ -1,20 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, ArrowLeft, CheckSquare, X, Edit, Trash2, AlertCircle, Users, BookOpen, Building2, Calendar, UserPlus } from 'lucide-react';
 
-interface Oficina {
-    id: string;
-    nome: string;
-    tipo: 'Esporte' | 'Cultura' | 'Educação' | 'Qualificação';
-    educadorResponsavel: string;
-    limiteVagas: number;
-    diasSemana: string[];
-    turno: 'Manhã' | 'Tarde' | 'Integral' | 'Noite';
-    unidade: string;
-    educandosMatriculados: string[];
-    faixaEtaria: string;
-    descricao: string;
-    horarios: string;
-}
+import { Oficina } from '../../types/models';
+import { storageService } from '../../services/storage';
+import { businessRules } from '../../services/businessRules';
 
 export function OficinasView() {
     const [currentView, setCurrentView] = useState<'list' | 'form' | 'details'>('list');
@@ -22,61 +11,17 @@ export function OficinasView() {
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, id: string | null }>({ isOpen: false, id: null });
 
-    // DB Mock for Educandos (Integration)
     const [globalEducandos, setGlobalEducandos] = useState<any[]>([]);
-    useEffect(() => {
-        const savedEducandos = localStorage.getItem('sgs_educandos_db');
-        if (savedEducandos) {
-            setGlobalEducandos(JSON.parse(savedEducandos));
-        }
-    }, [currentView]); // Re-fetch occasionally
+    const [oficinasData, setOficinasData] = useState<Oficina[]>([]);
 
-    // DB Mock for Oficinas
-    const [oficinasData, setOficinasData] = useState<Oficina[]>(() => {
-        const saved = localStorage.getItem('sgs_oficinas_db');
-        if (saved) {
-            // Migrate legacy objects to strings if necessary
-            const parsed = JSON.parse(saved);
-            return parsed.map((o: any) => ({
-                ...o,
-                educandosMatriculados: o.educandosMatriculados.map((ed: any) => typeof ed === 'string' ? ed : ed.id)
-            }));
-        }
-        return [
-            {
-                id: '1',
-                nome: 'Informática Básica',
-                tipo: 'Educação',
-                educadorResponsavel: 'Prof. Roberto (TI)',
-                limiteVagas: 20,
-                diasSemana: ['Segunda', 'Quarta'],
-                turno: 'Tarde',
-                unidade: 'Sede Central',
-                educandosMatriculados: ['1', '2'], // Mock IDs matching the Educandos initial db
-                faixaEtaria: '12 a 16 anos',
-                descricao: 'Introdução à informática.',
-                horarios: '14:00 às 16:00'
-            },
-            {
-                id: '2',
-                nome: 'Futebol e Cidadania',
-                tipo: 'Esporte',
-                educadorResponsavel: 'Prof. Mário (Ed. Física)',
-                limiteVagas: 2, // Low for testing limits
-                diasSemana: ['Terça', 'Quinta'],
-                turno: 'Manhã',
-                unidade: 'Quadra Esportiva Norte',
-                educandosMatriculados: ['1', '2'], // Lotado
-                faixaEtaria: '10 a 15 anos',
-                descricao: 'Treinos táticos, físicos e cidadania.',
-                horarios: '08:30 às 10:30'
-            }
-        ];
-    });
+    const loadData = () => {
+        setGlobalEducandos(storageService.getEducandos());
+        setOficinasData(storageService.getOficinas());
+    };
 
     useEffect(() => {
-        localStorage.setItem('sgs_oficinas_db', JSON.stringify(oficinasData));
-    }, [oficinasData]);
+        loadData();
+    }, [currentView]);
 
     const showToast = (msg: string) => {
         setToast({ show: true, msg });
@@ -84,40 +29,47 @@ export function OficinasView() {
     };
 
     const handleSave = (oficina: Oficina) => {
-        if (selectedId) {
-            setOficinasData(oficinasData.map(o => o.id === oficina.id ? oficina : o));
-            showToast('Oficina atualizada com sucesso!');
-        } else {
-            setOficinasData([oficina, ...oficinasData]);
-            showToast('Oficina criada com sucesso!');
-        }
+        const newData = selectedId 
+            ? oficinasData.map(o => o.id === oficina.id ? oficina : o)
+            : [oficina, ...oficinasData];
+        storageService.saveOficinas(newData);
+        loadData();
+        showToast(selectedId ? 'Oficina atualizada com sucesso!' : 'Oficina criada com sucesso!');
         setCurrentView('list');
     };
 
     const handleDelete = (id: string) => {
-        setOficinasData(oficinasData.filter(o => o.id !== id));
+        const newData = oficinasData.filter(o => o.id !== id);
+        storageService.saveOficinas(newData);
+        loadData();
         setDeleteModal({ isOpen: false, id: null });
         showToast('Oficina removida definitivamente.');
         if (currentView === 'details') setCurrentView('list');
     };
 
     const handleEnroll = (oficinaId: string, studentId: string) => {
-        setOficinasData(oficinasData.map(o => {
-            if (o.id === oficinaId && !o.educandosMatriculados.includes(studentId)) {
-                return { ...o, educandosMatriculados: [...o.educandosMatriculados, studentId] };
-            }
-            return o;
-        }));
-        showToast('Educando matriculado com sucesso!');
+        const result = businessRules.realizarMatricula(studentId, oficinaId);
+        if (result.success) {
+            loadData();
+            showToast(result.message);
+        } else {
+            alert(result.message);
+        }
     };
 
     const handleUnenroll = (oficinaId: string, studentId: string) => {
-        setOficinasData(oficinasData.map(o => {
-            if (o.id === oficinaId) {
-                return { ...o, educandosMatriculados: o.educandosMatriculados.filter(s => s !== studentId) };
-            }
-            return o;
-        }));
+        const oficinas = storageService.getOficinas();
+        const educandos = storageService.getEducandos();
+        
+        // Remove da oficina
+        const newData = oficinas.map(o => o.id === oficinaId ? { ...o, educandosMatriculados: o.educandosMatriculados.filter(s => s !== studentId) } : o);
+        storageService.saveOficinas(newData);
+        
+        // Remove do educando
+        const newEduData = educandos.map(e => e.id === studentId ? { ...e, oficinasVinculadas: e.oficinasVinculadas.filter(o => o !== oficinaId) } : e);
+        storageService.saveEducandos(newEduData);
+        
+        loadData();
         showToast('Matrícula cancelada com sucesso.');
     };
 
@@ -232,7 +184,7 @@ function OficinasList({ data, onView, onEdit, onDelete, onCreate }: any) {
                         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                             {filtered.map((row: Oficina) => {
                                 const ocupadas = row.educandosMatriculados.length;
-                                const isLotado = ocupadas >= row.limiteVagas;
+                                const isLotado = !businessRules.podeMatricular(row);
                                 return (
                                     <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                         <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-200">
@@ -431,8 +383,9 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
     const [searchQuery, setSearchQuery] = useState('');
 
     const ocupadas = oficina.educandosMatriculados.length;
-    const disponiveis = oficina.limiteVagas - ocupadas;
-    const isLotado = ocupadas >= oficina.limiteVagas;
+    const limite = parseInt(oficina.limiteVagas, 10) || 0;
+    const disponiveis = limite - ocupadas;
+    const isLotado = !businessRules.podeMatricular(oficina);
 
     // Hydrate enrolled students tracking IDs against global state
     const enrolledStudents = oficina.educandosMatriculados.map((id: string) => {
@@ -453,7 +406,7 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
         return Math.abs(new Date(ageDifMs).getUTCFullYear() - 1970);
     };
 
-    const availableStudents = globalEducandos.filter((e: any) => !oficina.educandosMatriculados.includes(e.id));
+    const availableStudents = businessRules.getEducandosParaMatricula().filter((e: any) => !oficina.educandosMatriculados.includes(e.id));
     const filteredAvailable = availableStudents.filter((e: any) => e.nome.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const handleConfirmEnroll = (studentId: string) => {
@@ -482,7 +435,7 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Capacidade</p>
-                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{oficina.limiteVagas}</p>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{limite}</p>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500"><Building2 className="w-5 h-5" /></div>
                 </div>
@@ -604,6 +557,12 @@ function OficinaDetails({ oficina, globalEducandos, onBack, onEnroll, onUnenroll
                             </div>
                         ) : (
                             <div className="space-y-4 flex-1 overflow-hidden flex flex-col mb-4">
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 p-3 rounded-lg flex items-center gap-3">
+                                    <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                    <p className="text-sm text-blue-800 dark:text-blue-300">
+                                        <strong>Aviso:</strong> Apenas educandos ativos podem ser matriculados. Educandos em Lista de Espera não estão aptos para matrícula.
+                                    </p>
+                                </div>
                                 <div className="relative">
                                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input

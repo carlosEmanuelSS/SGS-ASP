@@ -1,27 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Eye, ArrowLeft, Upload, FileText, Calendar, CheckSquare, X, Edit, Trash2, AlertCircle } from 'lucide-react';
 
-interface Educando {
-    id: string;
-    nome: string;
-    status: 'Ativo' | 'Inativo';
-    dadosPessoais: {
-        dataNascimento: string;
-        cpf: string;
-        matriculaEscolar: string;
-    };
-    nucleoFamiliar: {
-        responsavel: string;
-        grauParentesco: string;
-        telefone: string;
-        renda: string;
-    };
-    socialDocs: {
-        programasSociais: boolean;
-        observacoes: string;
-    };
-    oficinasVinculadas: string[];
-}
+import { Educando } from '../../types/models';
+import { storageService } from '../../services/storage';
+import { businessRules } from '../../services/businessRules';
 
 export function EducandosView() {
     // Navigation State required by prompt
@@ -30,35 +12,15 @@ export function EducandosView() {
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, id: string | null }>({ isOpen: false, id: null });
 
-    // Database Mock with LocalStorage persistence to prevent data loss on tab switch
-    const [educandosData, setEducandosData] = useState<Educando[]>(() => {
-        const saved = localStorage.getItem('sgs_educandos_db');
-        if (saved) return JSON.parse(saved);
-        return [
-            {
-                id: '1',
-                nome: 'Carlos Almeida',
-                status: 'Ativo',
-                dadosPessoais: { dataNascimento: '2009-05-12', cpf: '123.456.789-00', matriculaEscolar: '9º Ano - EE. Marechal' },
-                nucleoFamiliar: { responsavel: 'Maria Almeida', grauParentesco: 'Mãe', telefone: '(11) 98765-4321', renda: 'R$ 1.500' },
-                socialDocs: { programasSociais: true, observacoes: 'Família acompanhada pelo CRAS. Vulnerabilidade moderada.' },
-                oficinasVinculadas: ['Informática Básica', 'Futebol']
-            },
-            {
-                id: '2',
-                nome: 'Ana Beatriz Silva',
-                status: 'Ativo',
-                dadosPessoais: { dataNascimento: '2008-08-22', cpf: '987.654.321-11', matriculaEscolar: '1º Ano EM' },
-                nucleoFamiliar: { responsavel: 'João Silva', grauParentesco: 'Pai', telefone: '(11) 91234-5678', renda: 'R$ 2.100' },
-                socialDocs: { programasSociais: false, observacoes: 'Nenhuma observação relevante.' },
-                oficinasVinculadas: ['Música & Artes']
-            }
-        ];
-    });
+    const [educandosData, setEducandosData] = useState<Educando[]>([]);
+
+    const loadData = () => {
+        setEducandosData(storageService.getEducandos());
+    };
 
     useEffect(() => {
-        localStorage.setItem('sgs_educandos_db', JSON.stringify(educandosData));
-    }, [educandosData]);
+        loadData();
+    }, [currentView]);
 
     // Toast Helper
     const showToast = (msg: string) => {
@@ -67,23 +29,39 @@ export function EducandosView() {
     };
 
     // CRUD Actions
-    const adicionarEducando = (novo: Educando) => {
-        setEducandosData([novo, ...educandosData]);
-        showToast('Educando cadastrado com sucesso!');
+    const adicionarEducando = (novo: any) => {
+        const preparado = businessRules.prepareNovoEducando(novo);
+        const newData = [preparado, ...educandosData];
+        storageService.saveEducandos(newData);
+        loadData();
+        showToast('Novo educando cadastrado na Lista de Espera!');
         setCurrentView('list');
     };
 
     const atualizarEducando = (atualizado: Educando) => {
-        setEducandosData(educandosData.map(e => e.id === atualizado.id ? atualizado : e));
+        const newData = educandosData.map(e => e.id === atualizado.id ? atualizado : e);
+        storageService.saveEducandos(newData);
+        loadData();
         showToast('Dados atualizados com sucesso!');
         setCurrentView('list');
     };
 
     const excluirEducando = (id: string) => {
-        setEducandosData(educandosData.filter(e => e.id !== id));
+        businessRules.inativarEducando(id);
+        loadData();
         setDeleteModal({ isOpen: false, id: null });
-        showToast('Educando excluído permanentemente.');
+        showToast('Educando inativado (soft delete).');
         if (currentView === 'details') setCurrentView('list');
+    };
+
+    const ativarEducando = (id: string) => {
+        const updated = educandosData.find(e => e.id === id);
+        if (updated) {
+            const newData = educandosData.map(e => e.id === id ? { ...e, status: 'ativo' as const } : e);
+            storageService.saveEducandos(newData);
+            loadData();
+            showToast('Educando ativado com sucesso!');
+        }
     };
 
     const activeEducando = useMemo(() => educandosData.find(e => e.id === selectedId), [educandosData, selectedId]);
@@ -167,7 +145,8 @@ export function EducandosView() {
                         educando={activeEducando}
                         onBack={() => setCurrentView('list')}
                         onEdit={() => setCurrentView('form')}
-                        onDelete={() => setDeleteModal({ isOpen: true, id: activeEducando.id })}
+                        onDelete={() => setDeleteModal({ isOpen: true, id: selectedId })}
+                        onAtivar={() => activeEducando && ativarEducando(activeEducando.id)}
                     />
                 </>
             )}
@@ -180,7 +159,22 @@ export function EducandosView() {
 // ----------------------------------------------------
 function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
     const [search, setSearch] = useState('');
-    const filtered = data.filter((e: Educando) => e.nome.toLowerCase().includes(search.toLowerCase()));
+    const [filterTab, setFilterTab] = useState<'todos' | 'ativo' | 'lista_espera' | 'inativo'>('todos');
+
+    const filtered = data.filter((e: Educando) => {
+        const matchSearch = e.nome.toLowerCase().includes(search.toLowerCase());
+        const matchTab = filterTab === 'todos' || e.status === filterTab;
+        return matchSearch && matchTab;
+    });
+
+    const formatStatus = (status: string) => {
+        switch (status) {
+            case 'ativo': return 'Ativo';
+            case 'inativo': return 'Inativo';
+            case 'lista_espera': return 'Lista de Espera';
+            default: return status;
+        }
+    };
 
     const getAge = (dateString: string) => {
         if (!dateString) return '--';
@@ -198,7 +192,27 @@ function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4">
+                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900/50 overflow-x-auto">
+                    {[
+                        { id: 'todos', label: 'Todos' },
+                        { id: 'ativo', label: 'Ativos' },
+                        { id: 'lista_espera', label: 'Lista de Espera' },
+                        { id: 'inativo', label: 'Inativos' }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setFilterTab(tab.id as any)}
+                            className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${filterTab === tab.id
+                                ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                                }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900">
                     <div className="relative flex-1 max-w-sm">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Pesquisar por nome..." className="pl-9 pr-4 py-2 w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none dark:text-slate-200" />
@@ -225,7 +239,12 @@ function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
                                         </div>
                                         <div>
                                             <span className="font-medium text-slate-900 dark:text-slate-200 block">{row.nome}</span>
-                                            <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${row.status === 'Ativo' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>{row.status}</span>
+                                            <span className={`inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
+                                                ${row.status === 'ativo' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                                    row.status === 'lista_espera' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                                                        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                                {formatStatus(row.status)}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{getAge(row.dadosPessoais.dataNascimento)} anos</td>
@@ -278,7 +297,7 @@ function EducandoForm({ initialData, onBack, onSave }: any) {
     const [form, setForm] = useState<Educando>(initialData || {
         id: Date.now().toString(),
         nome: '',
-        status: 'Ativo',
+        status: 'lista_espera',
         dadosPessoais: { dataNascimento: '', cpf: '', matriculaEscolar: '' },
         nucleoFamiliar: { responsavel: '', grauParentesco: '', telefone: '', renda: '' },
         socialDocs: { programasSociais: false, observacoes: '' },
@@ -433,8 +452,17 @@ function EducandoForm({ initialData, onBack, onSave }: any) {
 // ----------------------------------------------------
 // SUB-COMPONENT: DETAILS
 // ----------------------------------------------------
-function EducandosDetails({ educando, onBack, onEdit, onDelete }: { educando: Educando, onBack: () => void, onEdit: () => void, onDelete: () => void }) {
+function EducandosDetails({ educando, onBack, onEdit, onDelete, onAtivar }: { educando: Educando, onBack: () => void, onEdit: () => void, onDelete: () => void, onAtivar: () => void }) {
     const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados');
+
+    const formatStatus = (status: string) => {
+        switch (status) {
+            case 'ativo': return 'Ativo';
+            case 'inativo': return 'Inativo';
+            case 'lista_espera': return 'Lista de Espera';
+            default: return status;
+        }
+    };
 
     const age = educando.dadosPessoais.dataNascimento ?
         Math.abs(new Date(Date.now() - new Date(educando.dadosPessoais.dataNascimento).getTime()).getUTCFullYear() - 1970)
@@ -450,6 +478,11 @@ function EducandosDetails({ educando, onBack, onEdit, onDelete }: { educando: Ed
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{educando.nome}</h1>
                 </div>
                 <div className="flex gap-2">
+                    {educando.status === 'lista_espera' && (
+                        <button onClick={onAtivar} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                            <CheckSquare className="w-4 h-4" /> Ativar Educando
+                        </button>
+                    )}
                     <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-200 shadow-sm">
                         <Edit className="w-4 h-4" /> Editar Dados
                     </button>
@@ -468,8 +501,11 @@ function EducandosDetails({ educando, onBack, onEdit, onDelete }: { educando: Ed
                             {educando.nome.charAt(0)}
                         </div>
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white">{educando.nome}</h2>
-                        <div className={`mt-2 text-xs font-semibold px-3 py-1 rounded-full w-fit mx-auto ${educando.status === 'Ativo' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
-                            Status: {educando.status}
+                        <div className={`mt-2 text-xs font-semibold px-3 py-1 rounded-full w-fit mx-auto uppercase tracking-wider
+                            ${educando.status === 'ativo' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                educando.status === 'lista_espera' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                                    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                            Status: {formatStatus(educando.status)}
                         </div>
                     </div>
                     <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">

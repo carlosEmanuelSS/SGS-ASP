@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Calendar, ArrowLeft, Users, CheckSquare, X, ListTodo, CheckCircle2, XCircle } from 'lucide-react';
+import { storageService } from '../../services/storage';
+import { businessRules } from '../../services/businessRules';
+import { Oficina, ChamadaHistorico } from '../../types/models';
 
 export function FrequenciaView() {
     const [frequenciaView, setFrequenciaView] = useState<'select-class' | 'take-attendance'>('select-class');
@@ -9,15 +12,11 @@ export function FrequenciaView() {
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
 
     // Integration with Global State
-    const [oficinas, setOficinas] = useState<any[]>([]);
-    const [educandos, setEducandos] = useState<any[]>([]);
+    const [oficinas, setOficinas] = useState<Oficina[]>([]);
 
     useEffect(() => {
-        const savedOfi = localStorage.getItem('sgs_oficinas_db');
-        if (savedOfi) setOficinas(JSON.parse(savedOfi));
-        const savedEdu = localStorage.getItem('sgs_educandos_db');
-        if (savedEdu) setEducandos(JSON.parse(savedEdu));
-    }, []);
+        setOficinas(storageService.getOficinas());
+    }, [frequenciaView]);
 
     // Attendance State (key = student ID)
     const [chamada, setChamada] = useState<{
@@ -28,10 +27,12 @@ export function FrequenciaView() {
         const oficina = oficinas.find(o => o.id === id);
         if (!oficina) return;
 
+        const activeStudents = businessRules.getEducandosNaOficina(id);
+
         // Golden UX Rule: Everyone is present by default
         const initialState: any = {};
-        oficina.educandosMatriculados.forEach((studentId: string) => {
-            initialState[studentId] = { presente: true, justificativa: '' };
+        activeStudents.forEach((student) => {
+            initialState[student.id] = { presente: true, justificativa: '' };
         });
 
         setChamada(initialState);
@@ -57,17 +58,26 @@ export function FrequenciaView() {
 
     // Derived data for the active class list
     const activeStudentsList = useMemo(() => {
-        if (!activeOficina) return [];
-        return activeOficina.educandosMatriculados.map((id: string) => {
-            const student = educandos.find(e => e.id === id);
-            return student || { id, nome: 'Aluno Não Encontrado (Removido)' };
-        });
-    }, [activeOficina, educandos]);
+        if (!selectedOficinaId) return [];
+        return businessRules.getEducandosNaOficina(selectedOficinaId);
+    }, [selectedOficinaId]);
 
     const totalPresentes = Object.values(chamada).filter(x => x.presente).length;
     const totalFaltas = Object.values(chamada).filter(x => !x.presente).length;
 
     const handleSave = () => {
+        if (!selectedOficinaId) return;
+
+        const newRecord: ChamadaHistorico = {
+            id: Date.now().toString(),
+            oficinaId: selectedOficinaId,
+            dataChamada: dataChamada,
+            registros: chamada
+        };
+
+        const todasFrequencias = storageService.getFrequencias();
+        storageService.saveFrequencias([...todasFrequencias, newRecord]);
+
         setToast({ show: true, msg: 'Frequência registrada com sucesso no histórico dos educandos!' });
         setTimeout(() => {
             setToast({ show: false, msg: '' });

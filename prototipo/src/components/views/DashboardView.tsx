@@ -1,95 +1,72 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Users, Building, Activity, ClipboardList, Plus, AlertTriangle, TrendingUp, CheckCircle2, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { businessRules } from '../../services/businessRules';
+import { storageService } from '../../services/storage';
 
 interface DashboardViewProps {
     onNavigate: (menu: 'dashboard' | 'educandos' | 'frequencia', educandosView?: 'list' | 'add' | 'details') => void;
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
-    const [educandos, setEducandos] = useState<any[]>([]);
-    const [oficinas, setOficinas] = useState<any[]>([]);
-    const [atendimentos, setAtendimentos] = useState<any[]>([]);
+    const [metricas, setMetricas] = useState(businessRules.calcularMetricasDashboard());
+    const [chartData, setChartData] = useState<{name: string, matriculados: number, vagasRestantes: number}[]>([]);
+    const [alertasEvasao, setAlertasEvasao] = useState<any[]>([]);
 
     useEffect(() => {
-        const edu = JSON.parse(localStorage.getItem('sgs_educandos_db') || '[]');
-        const ofi = JSON.parse(localStorage.getItem('sgs_oficinas_db') || '[]');
-        const atd = JSON.parse(localStorage.getItem('sgs_atendimentos_db') || '[]');
-        setEducandos(edu);
-        setOficinas(ofi);
-        setAtendimentos(atd);
+        setMetricas(businessRules.calcularMetricasDashboard());
+        setChartData(businessRules.gerarOcupacaoPorOficina().slice(0, 6));
+        setAlertasEvasao(businessRules.getEducandosComRiscoEvasao());
     }, []);
 
-    // 1. Dynamic Calculations
-    const totalEducandosAtivos = educandos.filter(e => e.status !== 'Inativo').length;
-    const totalOficinas = oficinas.length;
+    const alunosComFaltas = alertasEvasao.length;
 
-    const totalVagas = oficinas.reduce((acc, curr) => acc + (parseInt(curr.limiteVagas) || 0), 0);
-    const totalMatriculados = oficinas.reduce((acc, curr) => acc + (curr.educandosMatriculados?.length || 0), 0);
-    const taxaOcupacao = totalVagas > 0 ? Math.round((totalMatriculados / totalVagas) * 100) : 0;
-
-    const totalAtendimentos = atendimentos.length;
-
-    // 2. Alerta de Evasão Dinâmico
-    const alunosComFaltas = useMemo(() => {
-        // Simulando a contagem de uma base de faltas persistente, se houver
-        const faltasDB = JSON.parse(localStorage.getItem('sgs_faltas_recorrentes') || '[{"id":"dev_mock","faltas": 4}]');
-        return faltasDB.filter((f: any) => f.faltas >= 3).length;
-    }, []);
-
-    // 3. Atividades Recentes (Feed Real)
+    // 3. Atividades Recentes (Feed Real simplificado)
     const feedAtividades = useMemo(() => {
         const atividades = [];
+        const educandos = storageService.getEducandos();
+        const atendimentos = storageService.getAtendimentos();
+        const oficinas = storageService.getOficinas();
 
         if (educandos.length > 0) {
-            const edu = educandos[0];
+            const edu = educandos[educandos.length - 1]; // Pegar o último inserido (geralmente final da array se não tiver sort)
             atividades.push({
-                title: 'Novo Educando Cadastrado',
+                title: 'Último Educando Cadastrado',
                 desc: `${edu.nome} foi registrado(a) no sistema.`,
                 time: 'Atividade Recente',
                 icon: Plus, color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-500/20',
-                timestamp: parseInt(edu.id) || Date.now() - 1000
+                timestamp: 3
             });
         }
 
         if (atendimentos.length > 0) {
             const atd = atendimentos[0];
             atividades.push({
-                title: atd.status === 'Cancelado (Erro de Registro)' ? 'Atendimento Cancelado' : 'Novo Registro de Atendimento',
+                title: atd.status === 'cancelado' ? 'Atendimento Cancelado' : 'Último Atendimento',
                 desc: `Registrado por ${atd.profissional} (${atd.tipo})`,
                 time: 'Atividade Recente',
                 icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-100 dark:bg-violet-500/20',
-                timestamp: parseInt(atd.id) || Date.now()
+                timestamp: 2
             });
         }
 
         if (oficinas.length > 0) {
-            const ofi = oficinas[0];
+            const ofi = oficinas[oficinas.length - 1];
             atividades.push({
-                title: 'Atualização em Oficina',
+                title: 'Última Oficina',
                 desc: `Gestão da turma de ${ofi.nome}.`,
                 time: 'Atividade Recente',
                 icon: Building, color: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-500/20',
-                timestamp: parseInt(ofi.id) || Date.now() - 5000
+                timestamp: 1
             });
         }
 
-        // Generate placeholders to fill up 4 slots if empty
         if (atividades.length === 0) {
             atividades.push({ title: 'Sistema Inicializado', desc: 'SGS ASP pronto para o primeiro registro.', time: 'Agora', icon: CheckCircle2, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-500/20', timestamp: 0 });
         }
 
         return atividades.sort((a, b) => b.timestamp - a.timestamp).slice(0, 4);
-    }, [educandos, atendimentos, oficinas]);
-
-    // 4. Gráfico Integrado Recharts
-    const chartData = useMemo(() => {
-        return oficinas.map(ofi => ({
-            name: ofi.nome,
-            matriculados: ofi.educandosMatriculados?.length || 0,
-            vagasRestantes: Math.max(0, (parseInt(ofi.limiteVagas) || 0) - (ofi.educandosMatriculados?.length || 0))
-        })).slice(0, 6);
-    }, [oficinas]);
+    }, []);
 
     // Custom Tooltip Recharts
     const CustomTooltip = ({ active, payload, label }: any) => {
@@ -118,12 +95,13 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </div>
 
             {/* Metrics Cards (Dynamic calculations) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
-                    { label: 'Educandos Ativos', value: totalEducandosAtivos, icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-                    { label: 'Oficinas em Andamento', value: totalOficinas, icon: Building, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
-                    { label: 'Taxa de Ocupação', value: `${taxaOcupacao}%`, icon: Activity, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-                    { label: 'Atendimentos Totais', value: totalAtendimentos, icon: ClipboardList, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-500/10' },
+                    { label: 'Educandos Ativos', value: metricas.totalAtivos, icon: Users, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+                    { label: 'Lista de Espera', value: metricas.totalListaEspera, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+                    { label: 'Oficinas Ativas', value: metricas.totalOficinas, icon: Building, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
+                    { label: 'Taxa Ocupação', value: `${metricas.taxaOcupacao}%`, icon: Activity, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                    { label: 'Atendimentos', value: metricas.totalAtendimentos, icon: ClipboardList, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-500/10' },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:-translate-y-1 transition-transform duration-300">
                         <div className="flex items-center gap-4">

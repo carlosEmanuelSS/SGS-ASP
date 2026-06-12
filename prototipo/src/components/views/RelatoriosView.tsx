@@ -1,54 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Filter, Users, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, AlertCircle } from 'lucide-react';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
+import { businessRules } from '../../services/businessRules';
 
 export function RelatoriosView() {
     const [activeTab, setActiveTab] = useState<'geral' | 'frequencia' | 'atendimentos'>('geral');
 
-    // =================== MOCK DATA ===================
-    const demografiaData = [
-        { name: '7 a 10 anos', value: 45 },
-        { name: '11 a 14 anos', value: 80 },
-        { name: '15 a 17 anos', value: 120 },
-        { name: '18+ anos', value: 30 },
-    ];
+    const [metricas, setMetricas] = useState(businessRules.calcularMetricasDashboard());
+    const [demografiaData, setDemografiaData] = useState<any[]>([]);
+    const [oficinasOcupacao, setOficinasOcupacao] = useState<any[]>([]);
+    const [alertasEvasao, setAlertasEvasao] = useState<any[]>([]);
+    const [atendimentosTipo, setAtendimentosTipo] = useState<any[]>([]);
+
+    useEffect(() => {
+        setMetricas(businessRules.calcularMetricasDashboard());
+        setDemografiaData(businessRules.gerarDadosDemograficos());
+        setOficinasOcupacao(businessRules.gerarOcupacaoPorOficina());
+        setAlertasEvasao(businessRules.getEducandosComRiscoEvasao());
+        setAtendimentosTipo(businessRules.gerarResumoAtendimentos());
+    }, []);
+
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
-    const oficinasOcupacao = [
-        { name: 'Futebol', matriculados: 40, vagas: 50 },
-        { name: 'Informática', matriculados: 25, vagas: 25 },
-        { name: 'Dança', matriculados: 30, vagas: 35 },
-        { name: 'Artes', matriculados: 18, vagas: 20 },
-        { name: 'Violão', matriculados: 45, vagas: 50 },
-    ];
-
+    // Mocks temporários para funcionalidades que ainda não têm histórico complexo (como "Evolução de 4 semanas" e "Encaminhamentos")
     const frequenciaEvolucao = [
-        { semana: 'Semana 1', presencas: 180, faltas: 20 },
-        { semana: 'Semana 2', presencas: 185, faltas: 15 },
-        { semana: 'Semana 3', presencas: 170, faltas: 30 },
-        { semana: 'Semana 4', presencas: 190, faltas: 10 },
+        { semana: 'Semana 1', presencas: 0, faltas: 0 },
+        { semana: 'Semana 2', presencas: 0, faltas: 0 },
+        { semana: 'Semana 3', presencas: 0, faltas: 0 },
+        { semana: 'Semana 4', presencas: 0, faltas: 0 },
     ];
 
-    const alertasEvasao = [
-        { id: 1, nome: 'João Pedro da Silva', oficina: 'Informática', faltas: 5, telefone: '(11) 98888-7777', status: 'Risco Alto' },
-        { id: 2, nome: 'Mariana Oliveira', oficina: 'Dança', faltas: 3, telefone: '(11) 97777-6666', status: 'Atenção' },
-        { id: 3, nome: 'Carlos Souza', oficina: 'Futebol', faltas: 4, telefone: '(11) 95555-4444', status: 'Atenção' },
-    ];
-
-    const atendimentosTipo = [
-        { tipo: 'Psicológico', qtde: 45 },
-        { tipo: 'Assist. Social', qtde: 60 },
-        { tipo: 'V. Domiciliar', qtde: 15 },
-        { tipo: 'O. Familiar', qtde: 30 },
-    ];
-
-    const encaminhamentos = [
-        { id: 1, data: '22/03/2026', educando: 'Pedro Nunes', profissional: 'Ana Silva', orgao: 'CRAS Norte', status: 'Aguardando' },
-        { id: 2, data: '20/03/2026', educando: 'Luiza Alves', profissional: 'Dr. Marcos', orgao: 'CAPS Infantil', status: 'Concluído' },
-        { id: 3, data: '18/03/2026', educando: 'Mateus Costa', profissional: 'Ana Silva', orgao: 'Conselho Tutelar', status: 'Concluído' },
-    ];
+    const encaminhamentos: any[] = [];
 
     // Tooltip customizado Recharts
     const CustomTooltip = ({ active, payload, label }: any) => {
@@ -144,12 +128,12 @@ export function RelatoriosView() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
                             <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-wider">Famílias Acompanhadas</h4>
+                                <h4 className="text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-wider">Total de Atendimentos</h4>
                                 <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400"><Users className="w-5 h-5" /></div>
                             </div>
-                            <p className="text-4xl font-black text-slate-900 dark:text-white">245</p>
+                            <p className="text-4xl font-black text-slate-900 dark:text-white">{metricas.totalAtendimentos}</p>
                             <div className="flex items-center gap-2 mt-4 text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 w-fit px-2 py-1 rounded">
-                                <TrendingUp className="w-4 h-4" /> +12% este mês
+                                <TrendingUp className="w-4 h-4" /> Métrica Real
                             </div>
                         </div>
 
@@ -158,9 +142,9 @@ export function RelatoriosView() {
                                 <h4 className="text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-wider">Educandos Ativos</h4>
                                 <div className="p-2 bg-sky-50 dark:bg-sky-500/10 rounded-xl text-sky-600 dark:text-sky-400"><Users className="w-5 h-5" /></div>
                             </div>
-                            <p className="text-4xl font-black text-slate-900 dark:text-white">275</p>
+                            <p className="text-4xl font-black text-slate-900 dark:text-white">{metricas.totalAtivos}</p>
                             <div className="flex items-center gap-2 mt-4 text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 w-fit px-2 py-1 rounded">
-                                <TrendingUp className="w-4 h-4" /> +5% este mês
+                                <TrendingUp className="w-4 h-4" /> Métrica Real
                             </div>
                         </div>
 
@@ -169,9 +153,9 @@ export function RelatoriosView() {
                                 <h4 className="text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-wider">Ocupação de Vagas</h4>
                                 <div className="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600 dark:text-amber-400"><PieChartIcon className="w-5 h-5" /></div>
                             </div>
-                            <p className="text-4xl font-black text-slate-900 dark:text-white">87<span className="text-2xl text-slate-400">%</span></p>
+                            <p className="text-4xl font-black text-slate-900 dark:text-white">{metricas.taxaOcupacao}<span className="text-2xl text-slate-400">%</span></p>
                             <div className="flex items-center gap-2 mt-4 text-sm font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 w-fit px-2 py-1 rounded">
-                                Capacidade Ótima atingida
+                                Base de Oficinas Real
                             </div>
                         </div>
                     </div>
