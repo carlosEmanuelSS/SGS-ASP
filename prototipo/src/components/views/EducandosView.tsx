@@ -5,22 +5,39 @@ import { Educando } from '../../types/models';
 import { storageService } from '../../services/storage';
 import { businessRules } from '../../services/businessRules';
 
-export function EducandosView() {
+export function EducandosView({ 
+    initialView = 'list', 
+    onViewChange 
+}: { 
+    initialView?: 'list' | 'form' | 'details';
+    onViewChange?: (view: 'list' | 'form' | 'details') => void;
+}) {
     // Navigation State required by prompt
-    const [currentView, setCurrentView] = useState<'list' | 'form' | 'details'>('list');
+    const [currentView, setCurrentView] = useState<'list' | 'form' | 'details'>(initialView);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [toast, setToast] = useState<{ show: boolean, msg: string }>({ show: false, msg: '' });
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, id: string | null }>({ isOpen: false, id: null });
 
     const [educandosData, setEducandosData] = useState<Educando[]>([]);
+    const [filterTab, setFilterTab] = useState<'todos' | 'ativo' | 'lista_espera' | 'inativo'>('todos');
 
     const loadData = () => {
         setEducandosData(storageService.getEducandos());
     };
 
+    // Sync view changes from parent
+    useEffect(() => {
+        setCurrentView(initialView);
+    }, [initialView]);
+
     useEffect(() => {
         loadData();
     }, [currentView]);
+
+    const changeView = (view: 'list' | 'form' | 'details') => {
+        setCurrentView(view);
+        if (onViewChange) onViewChange(view);
+    };
 
     // Toast Helper
     const showToast = (msg: string) => {
@@ -34,8 +51,9 @@ export function EducandosView() {
         const newData = [preparado, ...educandosData];
         storageService.saveEducandos(newData);
         loadData();
+        setFilterTab('lista_espera'); // Auto-select waiting list tab so the user sees the student there
         showToast('Novo educando cadastrado na Lista de Espera!');
-        setCurrentView('list');
+        changeView('list');
     };
 
     const atualizarEducando = (atualizado: Educando) => {
@@ -43,7 +61,7 @@ export function EducandosView() {
         storageService.saveEducandos(newData);
         loadData();
         showToast('Dados atualizados com sucesso!');
-        setCurrentView('list');
+        changeView('list');
     };
 
     const excluirEducando = (id: string) => {
@@ -51,7 +69,7 @@ export function EducandosView() {
         loadData();
         setDeleteModal({ isOpen: false, id: null });
         showToast('Educando inativado (soft delete).');
-        if (currentView === 'details') setCurrentView('list');
+        if (currentView === 'details') changeView('list');
     };
 
     const ativarEducando = (id: string) => {
@@ -117,10 +135,12 @@ export function EducandosView() {
             {currentView === 'list' && (
                 <EducandosList
                     data={educandosData}
-                    onView={(id: string) => { setSelectedId(id); setCurrentView('details'); }}
-                    onEdit={(id: string) => { setSelectedId(id); setCurrentView('form'); }}
+                    filterTab={filterTab}
+                    setFilterTab={setFilterTab}
+                    onView={(id: string) => { setSelectedId(id); changeView('details'); }}
+                    onEdit={(id: string) => { setSelectedId(id); changeView('form'); }}
                     onDelete={(id: string) => setDeleteModal({ isOpen: true, id })}
-                    onCreate={() => { setSelectedId(null); setCurrentView('form'); }}
+                    onCreate={() => { setSelectedId(null); changeView('form'); }}
                 />
             )}
 
@@ -129,7 +149,7 @@ export function EducandosView() {
                 <>
                     <EducandoForm
                         initialData={activeEducando}
-                        onBack={() => setCurrentView('list')}
+                        onBack={() => changeView('list')}
                         onSave={(data: Educando) => {
                             if (activeEducando) atualizarEducando(data);
                             else adicionarEducando(data);
@@ -143,8 +163,8 @@ export function EducandosView() {
                 <>
                     <EducandosDetails
                         educando={activeEducando}
-                        onBack={() => setCurrentView('list')}
-                        onEdit={() => setCurrentView('form')}
+                        onBack={() => changeView('list')}
+                        onEdit={() => changeView('form')}
                         onDelete={() => setDeleteModal({ isOpen: true, id: selectedId })}
                         onAtivar={() => activeEducando && ativarEducando(activeEducando.id)}
                     />
@@ -157,9 +177,8 @@ export function EducandosView() {
 // ----------------------------------------------------
 // SUB-COMPONENT: LIST
 // ----------------------------------------------------
-function EducandosList({ data, onView, onEdit, onDelete, onCreate }: any) {
+function EducandosList({ data, filterTab, setFilterTab, onView, onEdit, onDelete, onCreate }: any) {
     const [search, setSearch] = useState('');
-    const [filterTab, setFilterTab] = useState<'todos' | 'ativo' | 'lista_espera' | 'inativo'>('todos');
 
     const filtered = data.filter((e: Educando) => {
         const matchSearch = e.nome.toLowerCase().includes(search.toLowerCase());

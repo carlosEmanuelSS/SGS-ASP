@@ -27,14 +27,14 @@ type ThemeType = 'light' | 'dark';
 
 export default function App() {
     const [activeMenu, setActiveMenu] = useState<MenuType>('dashboard');
-    const [, setEducandosSubView] = useState<EducandosViewType>('list');
+    const [educandosSubView, setEducandosSubView] = useState<EducandosViewType>('list');
     const [theme, setTheme] = useState<ThemeType>('light');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    const handleNavigate = (menu: MenuType, subView?: EducandosViewType) => {
+    const handleNavigate = (menu: MenuType, subView?: EducandosViewType | 'add') => {
         setActiveMenu(menu);
         if (subView) {
-            setEducandosSubView(subView);
+            setEducandosSubView(subView === 'add' ? 'form' : subView);
         } else if (menu === 'educandos') {
             setEducandosSubView('list');
         }
@@ -147,8 +147,13 @@ export default function App() {
                 </header>
 
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-slate-950">
-                    {activeMenu === 'dashboard' && <DashboardView onNavigate={(menu, view) => handleNavigate(menu as MenuType, view as EducandosViewType)} />}
-                    {activeMenu === 'educandos' && <EducandosView />}
+                    {activeMenu === 'dashboard' && <DashboardView onNavigate={(menu, view) => handleNavigate(menu as MenuType, view as any)} />}
+                    {activeMenu === 'educandos' && (
+                        <EducandosView 
+                            initialView={educandosSubView} 
+                            onViewChange={(view) => setEducandosSubView(view)} 
+                        />
+                    )}
                     {activeMenu === 'oficinas' && <OficinasView />}
                     {activeMenu === 'frequencia' && <FrequenciaView />}
                     {activeMenu === 'atendimentos' && <AtendimentosView />}

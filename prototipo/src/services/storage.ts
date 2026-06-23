@@ -18,6 +18,25 @@ function get<T>(key: string): T[] {
             console.error(`Error parsing data for ${key}`, e);
         }
     }
+
+    // Auto-seed if it's the first time and database has not been seeded yet
+    if (!localStorage.getItem('sgs_db_seeded')) {
+        localStorage.setItem('sgs_db_seeded', 'true');
+        set(KEYS.EDUCANDOS, mockEducandos);
+        set(KEYS.OFICINAS, mockOficinas);
+        set(KEYS.ATENDIMENTOS, mockAtendimentos);
+        set(KEYS.FREQUENCIAS, mockFrequencias);
+        console.warn('Demo data has been seeded.');
+        const seededData = localStorage.getItem(key);
+        if (seededData) {
+            try {
+                return JSON.parse(seededData) as T[];
+            } catch (e) {
+                console.error(`Error parsing seeded data for ${key}`, e);
+            }
+        }
+    }
+
     // Return empty array instead of mock fallback
     return [];
 }
