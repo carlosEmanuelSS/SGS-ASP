@@ -37,7 +37,7 @@ Link do protótipo:
 https://sgs-asp.vercel.app
 
 Link da Demo:
-[Link do vídeo de demonstração]
+https://youtu.be/3SR_LfYa0AU
 
 ## 4. Análise Crítica
 
