@@ -1,0 +1,113 @@
+name: Sistema - testes e segurança
+on:
+  push:
+    paths: ["sistema/**", ".github/workflows/sistema.yml"]
+  pull_request:
+    paths: ["sistema/**", ".github/workflows/sistema.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        banco: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sgs
+          POSTGRES_USER: sgs
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sgs -d sgs" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DJANGO_DEBUG: "true"
+      POSTGRES_HOST: ${{ matrix.banco == 'postgres' && '127.0.0.1' || '' }}
+      POSTGRES_DB: sgs
+      POSTGRES_USER: sgs
+      POSTGRES_PASSWORD: ci-only-password
+    defaults:
+      run:
+        working-directory: sistema/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ferramentas para ensaio de restauração
+        if: matrix.banco == 'postgres'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo '/usr/lib/postgresql/17/bin' >> "$GITHUB_PATH"
+      - run: pip install -r requirements.txt pip-audit
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py collectstatic --noinput
+      - run: python manage.py test --noinput
+      - run: pip-audit -r requirements.txt --progress-spinner off
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sistema/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: sistema/frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r ../backend/requirements.txt
+      - run: npm ci
+      - run: npm run build
+      - run: npm audit --audit-level=moderate
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: navegador-dados-ficticios
+          path: sistema/frontend/test-results
+          retention-days: 7
+  container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SGS_DOMAIN: localhost
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_ADMIN_PASSWORD: ci-only-administrative-password
+      DJANGO_SECRET_KEY: ci-only-never-use-in-production-abcdefghijklmnopqrstuvwxyz0123456789
+    defaults:
+      run:
+        working-directory: sistema
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml config --quiet
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml build app
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml up -d db
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml run --rm app python manage.py migrate --noinput
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml run --rm app python manage.py configurar_perfis
+      - name: Conta do app sem privilégios administrativos
+        run: |
+          docker compose -f compose.prod.yaml -f compose.ci.yaml exec -T db psql -U postgres -d sgs -Atc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname='sgs'" | grep -qx 'f|f|f'
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml run --rm app python manage.py check --deploy --fail-level WARNING
+      - run: docker compose -f compose.prod.yaml -f compose.ci.yaml up -d app
+      - name: HTTP pelo servidor de produção
+        run: |
+          curl --retry 20 --retry-connrefused --retry-delay 2 --fail http://localhost:8000/healthz/
+          curl --fail -H 'X-Forwarded-Proto: https' http://localhost:8000/ > /tmp/sgs-index.html
+          grep -q 'id="root"' /tmp/sgs-index.html
+      - name: Encerrar ambiente temporário
+        if: always()
+        run: docker compose -f compose.prod.yaml -f compose.ci.yaml down

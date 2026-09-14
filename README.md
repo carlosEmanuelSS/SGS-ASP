@@ -1,5 +1,7 @@
 # 🏫 SGS-ASP — Sistema de Gestão Social
 
+> **Sistema operacional em desenvolvimento:** a pasta [`sistema/`](./sistema/README.md) contém Alunos, Oficinas e matrículas, Frequência, Atendimentos, Doações, indicadores e Relatórios, com API Django e persistência em banco. Veja a [entrega e os testes](./sistema/ENTREGA.md) e o [guia de implantação](./sistema/OPERACAO.md). O conteúdo abaixo documenta o protótipo acadêmico, preservado em `prototipo/`; não descreve a implantação definitiva.
+
 **Plataforma web para centralização de dados, controle de atividades, registro de frequência e automação de relatórios da ONG Ação Social do Planalto (ASP).**
 
 O **SGS-ASP** é um projeto acadêmico desenvolvido na disciplina **Projeto Integrador I**, do curso de **Análise e Desenvolvimento de Sistemas — CEUB**. A solução foi proposta para apoiar a **Ação Social do Planalto**, instituição que atua no acolhimento e acompanhamento de crianças e adolescentes em situação de vulnerabilidade social no Distrito Federal.

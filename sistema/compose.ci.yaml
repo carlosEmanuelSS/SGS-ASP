@@ -1,0 +1,5 @@
+# Somente para testes locais/CI. Nunca publicar a porta do app em produção.
+services:
+  app:
+    ports:
+      - "127.0.0.1:8000:8000"

@@ -16,3 +16,19 @@ dist/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Sistema definitivo (ambiente local e dados)
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.sqlite3-*
+staticfiles/
+.env.*
+!.env.example
+playwright-report/
+test-results/
+backups/
+*.dump
+*.dump.partial
+logs/

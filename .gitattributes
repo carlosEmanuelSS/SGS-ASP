@@ -1,0 +1,3 @@
+/sistema/** text=auto eol=lf
+/sistema/*.cmd text eol=crlf
+/.github/workflows/*.yml text eol=lf

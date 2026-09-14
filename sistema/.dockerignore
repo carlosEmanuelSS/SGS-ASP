@@ -1,0 +1,12 @@
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/*.sqlite3*
+**/staticfiles
+**/.env*
+backups
+**/*.dump
+**/test-results
+**/playwright-report
