@@ -15,6 +15,8 @@ export default defineConfig({
     actionTimeout: 15000,
     baseURL: "http://127.0.0.1:5175",
     browserName: "chromium",
+    // Mesmo fuso do servidor; senão, perto da meia-noite UTC a data do navegador vira "futura".
+    timezoneId: "America/Sao_Paulo",
     ...(process.env.SGS_EDGE ? { channel: "msedge" } : {}),
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
