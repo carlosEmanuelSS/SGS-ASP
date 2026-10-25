@@ -7,6 +7,11 @@ export type Turma = {
   dias_semana: number[];
   inicio: string;
   fim: string;
+  /** Presentes apenas na listagem de turmas. */
+  educador?: string;
+  alunos?: number;
+  chamada_hoje?: boolean;
+  aula_hoje?: boolean;
 };
 export type Registro = {
   matricula_id: string;

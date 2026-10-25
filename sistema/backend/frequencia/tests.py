@@ -156,6 +156,11 @@ class FrequenciaTests(TestCase):
         ResponsavelTurma.objects.create(oficina=self.o,usuario=educator)
         self.assertEqual(self.client.get('/api/frequencia/turmas/').json()['total'],1)
         self.assertEqual(self.post().status_code,201)
+        item=self.client.get('/api/frequencia/turmas/').json()['items'][0]
+        self.assertEqual(item['educador'],self.o.educador)
+        self.assertEqual(item['alunos'],Matricula.objects.filter(oficina=self.o,ativa=True).count())
+        self.assertEqual(item['chamada_hoje'],Chamada.objects.filter(oficina=self.o,data=timezone.localdate()).exists())
+        self.assertEqual(item['aula_hoje'],timezone.localdate().weekday() in self.o.dias_semana)
         self.assertEqual(self.client.get('/api/alunos/').status_code,403)
         self.assertEqual(self.client.get('/api/oficinas/').status_code,403)
         self.assertEqual(self.client.get(self.base+'responsaveis/').status_code,403)

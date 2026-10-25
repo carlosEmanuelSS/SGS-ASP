@@ -3,7 +3,7 @@ from uuid import UUID
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Exists, OuterRef
 from django.http import JsonResponse
 from django.utils import timezone
 from alunos.views import endpoint
@@ -64,9 +64,15 @@ def serialize(chamada, oficina, dia):
 @endpoint(['GET'], 'frequencia.view_chamada')
 def turmas(request):
     q = request.GET.get('q', '').strip()[:160]
-    records = turmas_permitidas(request.user).filter(Q(nome__icontains=q) | Q(turma__icontains=q))
+    hoje = timezone.localdate()
+    records = turmas_permitidas(request.user).filter(Q(nome__icontains=q) | Q(turma__icontains=q)).annotate(
+        alunos=Count('matriculas', filter=Q(matriculas__ativa=True), distinct=True),
+        chamada_hoje=Exists(Chamada.objects.filter(oficina=OuterRef('pk'), data=hoje)))
     page = Paginator(records, 20).get_page(request.GET.get('page', '1'))
-    return JsonResponse({'items': [dados_turma(o) for o in page], 'total': page.paginator.count,
+    # dias_semana usa 0 = segunda-feira, o mesmo padrão de date.weekday().
+    return JsonResponse({'items': [{**dados_turma(o), 'educador': o.educador, 'alunos': o.alunos,
+                                    'chamada_hoje': o.chamada_hoje, 'aula_hoje': hoje.weekday() in o.dias_semana}
+                                   for o in page], 'total': page.paginator.count,
                          'page': page.number, 'pages': page.paginator.num_pages})
 
 

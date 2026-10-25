@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, mensagem } from "../../api";
 import type { User } from "../../api";
+import { Barra } from "../../ui";
 import { dias, horario } from "./types";
 import type { Candidato, DetalheOficina as Ficha, Pagina } from "./types";
 
@@ -144,10 +145,10 @@ export function DetalheOficina({
                     ? `${ficha.disponiveis} vagas disponíveis`
                     : "Turma lotada"}
                 </p>
-                <progress
-                  aria-label="Ocupação da turma"
-                  value={ficha.ocupadas}
+                <Barra
+                  valor={ficha.ocupadas}
                   max={ficha.limite_vagas}
+                  rotulo="Ocupação da turma"
                 />
               </div>
             </div>

@@ -194,6 +194,11 @@ class GestaoTests(TestCase):
         self.assertEqual(r['ocupacao'][0]['ocupadas'], 1)
         self.assertEqual(r['alertas'][0]['faltas'], 3)
         self.assertEqual(sum(r['faixas'].values()), 1)
+        self.assertEqual(sum(s['total'] for s in r['semanas']), 3)
+        self.assertEqual(sum(s['presentes'] for s in r['semanas']), 0)
+        self.assertEqual(r['por_turma'], [{'id': str(oficina.pk), 'nome': oficina.nome, 'turma': 'A',
+            'educador': 'Professor A', 'aulas': 3, 'total': 3, 'presentes': 0}])
+        self.assertEqual(r['alunos']['espera_30_dias'], 0)
         self.assertEqual(self.client.get('/api/relatorios/'+qs+'&educador=Outro').json()['frequencia']['total'], 0)
         csv = self.client.get('/api/relatorios/'+qs+'&formato=csv')
         self.assertIn('attachment', csv['Content-Disposition'])

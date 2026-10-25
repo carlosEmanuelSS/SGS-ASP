@@ -158,7 +158,12 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
       await navegar(page, name);
       await expect(
         page.getByRole("heading", {
-          name: name === "Oficinas e matrículas" ? "Oficinas e turmas" : name,
+          name:
+            name === "Oficinas e matrículas"
+              ? "Oficinas e Turmas"
+              : name === "Relatórios"
+                ? "Relatórios & Indicadores"
+                : name,
           exact: true,
         }),
       ).toBeVisible();
@@ -188,8 +193,9 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
     })
     .click();
   await page
-    .getByLabel("Situação de Aluno E2E", { exact: true })
-    .selectOption("presente");
+    .getByRole("radiogroup", { name: "Situação de Aluno E2E", exact: true })
+    .getByRole("radio", { name: "Presente" })
+    .click();
   await page
     .getByRole("button", { name: "Salvar chamada", exact: true })
     .click();

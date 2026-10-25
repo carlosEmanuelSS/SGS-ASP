@@ -7,6 +7,7 @@ import { Oficinas } from "./features/oficinas/Oficinas";
 import { Frequencia } from "./features/frequencia/Frequencia";
 import { Registros } from "./features/gestao/Registros";
 import { Relatorios } from "./features/gestao/Relatorios";
+import { VisaoGeral } from "./features/gestao/VisaoGeral";
 import { Icon } from "./Icon";
 import logoAsp from "./assets/logo-asp.png";
 import mascoteAsp from "./assets/mascote-asp.png";
@@ -20,6 +21,12 @@ type Modulo =
   | "painel"
   | "relatorios"
   | "senha";
+/** Primeira tela após o login: Visão geral para quem vê indicadores. */
+function inicial(user: User): Modulo {
+  if (user.pode_ver_indicadores) return "painel";
+  if (!user.pode_ver_alunos && user.pode_ver_frequencia) return "frequencia";
+  return "alunos";
+}
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
@@ -92,8 +99,7 @@ export default function App() {
     try {
       const current = (await api<{ user: User | null }>("session/")).user;
       setUser(current);
-      if (current && !current.pode_ver_alunos && current.pode_ver_frequencia)
-        setModulo("frequencia");
+      if (current) setModulo(inicial(current));
     } catch (e) {
       setError(mensagem(e));
     } finally {
@@ -123,8 +129,7 @@ export default function App() {
         Object.fromEntries(form),
       );
       setUser(result.user);
-      if (!result.user.pode_ver_alunos && result.user.pode_ver_frequencia)
-        setModulo("frequencia");
+      setModulo(inicial(result.user));
     } catch (e) {
       setError(mensagem(e));
     } finally {
@@ -396,7 +401,7 @@ export default function App() {
         {modulo === "senha" ? (
           <Senha />
         ) : modulo === "painel" && user.pode_ver_indicadores ? (
-          <Relatorios painel />
+          <VisaoGeral user={user} onNavegar={navegar} />
         ) : modulo === "relatorios" && user.pode_ver_indicadores ? (
           <Relatorios />
         ) : modulo === "atendimentos" && user.pode_ver_atendimentos ? (

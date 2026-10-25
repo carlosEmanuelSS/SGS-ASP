@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, ApiError, mensagem } from "../../api";
 import type { Lista, User } from "../../api";
+import { CabecalhoModulo, Esqueleto } from "../../ui";
 
 export const tiposAtendimento: Record<string, string> = {
   social: "Social",
@@ -167,6 +168,27 @@ export function Registros({
       ? "Atendimentos do aluno"
       : "Atendimentos"
     : "Doações";
+  const descricao = atendimento
+    ? "Acompanhamento com sigilo e histórico preservado."
+    : "Registro das doações recebidas pela instituição.";
+  const acoes = (
+    <>
+      {view === "list" && podeCriar && (
+        <button
+          onClick={() => {
+            setSelected(null);
+            setNotice("");
+            setView("form");
+          }}
+        >
+          + {atendimento ? "Registrar atendimento" : "Registrar doação"}
+        </button>
+      )}
+      {view === "details" && selected?.pode_editar && (
+        <button onClick={() => setView("form")}>Corrigir ou cancelar</button>
+      )}
+    </>
+  );
   return (
     <section className={aluno ? "attendance-section" : undefined}>
       {view === "details" && (
@@ -174,37 +196,39 @@ export function Registros({
           ← Voltar para {title.toLowerCase()}
         </button>
       )}
-      <div className="page-title">
-        <div>
-          {aluno ? (
+      {aluno ? (
+        <div className="page-title">
+          <div>
             <h2>{title}</h2>
-          ) : (
-            <>
-              <p className="eyebrow">GESTÃO SOCIAL</p>
-              <h1>{title}</h1>
-            </>
-          )}
-          <p>
-            {atendimento
-              ? "Acompanhamento com sigilo e histórico preservado."
-              : "Registro das doações recebidas pela instituição."}
-          </p>
+            <p>{descricao}</p>
+          </div>
+          {acoes}
         </div>
-        {view === "list" && podeCriar && (
-          <button
-            onClick={() => {
-              setSelected(null);
-              setNotice("");
-              setView("form");
-            }}
-          >
-            + {atendimento ? "Registrar atendimento" : "Registrar doação"}
-          </button>
-        )}
-        {view === "details" && selected?.pode_editar && (
-          <button onClick={() => setView("form")}>Corrigir ou cancelar</button>
-        )}
-      </div>
+      ) : (
+        <CabecalhoModulo
+          modulo={tipo}
+          eyebrow={
+            atendimento
+              ? "ACOMPANHAMENTO SOCIOASSISTENCIAL"
+              : "APOIO À INSTITUIÇÃO"
+          }
+          titulo={title}
+          descricao={descricao}
+          acao={acoes}
+          resumo={
+            view === "list" && list
+              ? [
+                  {
+                    rotulo: atendimento
+                      ? "Registros acessíveis"
+                      : "Doações registradas",
+                    valor: list.total,
+                  },
+                ]
+              : undefined
+          }
+        />
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -295,11 +319,13 @@ export function Registros({
             </label>
           </div>
           {!list ? (
-            <p className="empty" role="status">
-              {error
-                ? "Não foi possível carregar os registros."
-                : "Carregando registros…"}
-            </p>
+            error ? (
+              <p className="empty" role="status">
+                Não foi possível carregar os registros.
+              </p>
+            ) : (
+              <Esqueleto tipo="tabela" linhas={4} />
+            )
           ) : !list.total ? (
             <p className="empty">Nenhum registro encontrado.</p>
           ) : (

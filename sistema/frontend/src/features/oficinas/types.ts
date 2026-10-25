@@ -1,3 +1,5 @@
+import type { IconName } from "../../Icon";
+
 export const dias = [
   "Segunda",
   "Terça",
@@ -52,5 +54,25 @@ export type Pagina<T> = {
   pages: number;
 };
 export type Candidato = { id: string; nome: string; data_nascimento: string };
-export const horario = (o: DadosOficina) =>
+export const horario = (o: Pick<DadosOficina, "inicio" | "fim">) =>
   `${o.inicio.slice(0, 5)} às ${o.fim.slice(0, 5)}`;
+
+/** Ícone temático pela área ou nome da oficina. */
+export function iconeOficina(o: { nome: string; tipo?: string }): IconName {
+  const texto = `${o.nome} ${o.tipo ?? ""}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  if (/robo|tecnolog|informatic|program|computa/.test(texto)) return "cpu";
+  if (/music|violao|coral|canto|percuss/.test(texto)) return "music";
+  if (/esport|futebol|volei|basquet|judo|capoeira|natac/.test(texto))
+    return "trophy";
+  if (/arte|teatro|pintur|desenho|artesan|danca/.test(texto)) return "palette";
+  if (/ingles|idioma|espanhol|libras|leitura|reforco/.test(texto))
+    return "book";
+  return "school";
+}
+
+/** "Turma A" sem repetir a palavra quando o nome já começa com "Turma". */
+export const rotuloTurma = (turma: string) =>
+  /^turma\b/i.test(turma.trim()) ? turma : `Turma ${turma}`;
