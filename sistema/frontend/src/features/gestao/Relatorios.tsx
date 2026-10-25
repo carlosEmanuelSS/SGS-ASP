@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, mensagem } from "../../api";
+import { Icon } from "../../Icon";
+import type { IconName } from "../../Icon";
 import { tiposAtendimento } from "./Registros";
 type Resumo = {
   inicio: string;
@@ -89,12 +91,23 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
   }
   return (
     <>
-      <div className="page-title">
+      <div className="page-title report-title">
+        <div className="report-art" aria-hidden="true">
+          <span />
+          <span />
+        </div>
         <div>
           <p className="eyebrow">ACOMPANHAMENTO DA INSTITUIÇÃO</p>
           <h1>{painel ? "Visão geral" : "Relatórios"}</h1>
           <p>Indicadores calculados a partir dos registros do sistema.</p>
         </div>
+        {painel && (
+          <p className="report-motto">
+            Mais oportunidades
+            <br />
+            para um futuro melhor.
+          </p>
+        )}
         {!painel && (
           <button disabled={!result || busy} onClick={() => void exportar()}>
             Exportar CSV
@@ -138,7 +151,10 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
             onChange={(e) => setEducador(e.target.value)}
           />
         </label>
-        <button>Atualizar indicadores</button>
+        <button>
+          <Icon name="refresh" />
+          Atualizar indicadores
+        </button>
       </form>
       {error && (
         <p role="alert" className="error">
@@ -154,11 +170,14 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
       ) : (
         <>
           <p className="report-note">
-            Dados atualizados em{" "}
-            {new Date(result.gerado_em).toLocaleString("pt-BR")}. Alunos e
-            ocupação mostram a situação atual; frequência, atendimentos e
-            doações usam o período selecionado, de até 366 dias. O filtro de
-            educador aplica-se às oficinas e à frequência.
+            <Icon name="info" />
+            <span>
+              Dados atualizados em{" "}
+              {new Date(result.gerado_em).toLocaleString("pt-BR")}. Alunos e
+              ocupação mostram a situação atual; frequência, atendimentos e
+              doações usam o período selecionado, de até 366 dias. O filtro de
+              educador aplica-se às oficinas e à frequência.
+            </span>
           </p>
           <div className="metric-grid">
             {[
@@ -171,15 +190,34 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
                   ? "Sem chamadas"
                   : result.frequencia.percentual + "%",
               ],
-            ].map(([label, value]) => (
-              <section className="card" key={label}>
-                <p>{label}</p>
-                <strong className="metric-value">{value}</strong>
+            ].map(([label, value], index) => (
+              <section
+                className={`card metric-card metric-${index}`}
+                key={label}
+              >
+                <span className="metric-icon">
+                  <Icon
+                    name={
+                      (["users", "wait", "school", "pie"] as IconName[])[index]
+                    }
+                  />
+                </span>
+                <div>
+                  <p>{label}</p>
+                  <strong
+                    className={`metric-value${value === "Sem chamadas" ? " metric-empty" : ""}`}
+                  >
+                    {value}
+                  </strong>
+                </div>
               </section>
             ))}
           </div>
           <section className="card report-section">
-            <h2>Ocupação das oficinas</h2>
+            <h2 className="section-title">
+              <Icon name="chart" />
+              Ocupação das oficinas
+            </h2>
             <p>Matrículas ativas e limite de vagas das turmas ativas.</p>
             {!result.ocupacao.length ? (
               <p>Nenhuma turma encontrada.</p>
@@ -198,18 +236,30 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
                     {result.ocupacao.map((o) => (
                       <tr key={o.id}>
                         <td>
-                          {o.nome}
+                          <strong>{o.nome}</strong>
                           <small>{o.turma}</small>
                         </td>
                         <td>{o.unidade}</td>
                         <td>{o.educador}</td>
                         <td>
-                          {o.ocupadas} de {o.vagas}
-                          <progress
-                            aria-label={"Ocupação de " + o.nome + " " + o.turma}
-                            max={o.vagas}
-                            value={o.ocupadas}
-                          />
+                          <div className="occupancy">
+                            <span>
+                              {o.ocupadas} de {o.vagas}
+                            </span>
+                            <progress
+                              aria-label={
+                                "Ocupação de " + o.nome + " " + o.turma
+                              }
+                              max={o.vagas}
+                              value={o.ocupadas}
+                            />
+                            <span className="occupancy-percent">
+                              {o.vagas > 0
+                                ? Math.round((o.ocupadas / o.vagas) * 100)
+                                : 0}
+                              %
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -218,9 +268,12 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
               </div>
             )}
           </section>
-          <div className="details-grid report-section">
+          <div className="details-grid report-section report-details">
             <section className="card">
-              <h2>Frequência no período</h2>
+              <h2 className="section-title">
+                <Icon name="calendar" />
+                Frequência no período
+              </h2>
               <dl>
                 <div>
                   <dt>Marcações em chamadas</dt>
@@ -235,13 +288,19 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
                   <dd>{result.frequencia.faltas}</dd>
                 </div>
               </dl>
-              <p>
-                Inclui faltas justificadas. Não representa o número de alunos
-                únicos.
+              <p className="report-footnote">
+                <Icon name="info" />
+                <span>
+                  Inclui faltas justificadas. Não representa o número de alunos
+                  únicos.
+                </span>
               </p>
             </section>
             <section className="card">
-              <h2>Faixas etárias</h2>
+              <h2 className="section-title">
+                <Icon name="users" />
+                Faixas etárias
+              </h2>
               <p>Idades atuais dos alunos ativos.</p>
               <dl>
                 {Object.entries(result.faixas).map(([faixa, total]) => (
@@ -253,7 +312,10 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
               </dl>
             </section>
             <section className="card">
-              <h2>Atendimentos acessíveis</h2>
+              <h2 className="section-title">
+                <Icon name="heart" />
+                Atendimentos acessíveis
+              </h2>
               <p>
                 Registros não cancelados que seu perfil pode consultar. Relatos
                 não são incluídos no relatório.
@@ -273,7 +335,10 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
             </section>
             {result.doacoes && (
               <section className="card">
-                <h2>Doações recebidas</h2>
+                <h2 className="section-title">
+                  <Icon name="gift" />
+                  Doações recebidas
+                </h2>
                 <p>
                   {result.doacoes.total} registros não cancelados no período.
                 </p>
@@ -291,7 +356,10 @@ export function Relatorios({ painel = false }: { painel?: boolean }) {
             )}
           </div>
           <section className="card report-section">
-            <h2>Alunos com três ou mais faltas</h2>
+            <h2 className="section-title">
+              <Icon name="users" />
+              Alunos com três ou mais faltas
+            </h2>
             <p>
               Até 100 alunos ativos, ordenados pelo total de faltas no período.
               As faltas podem pertencer a turmas distintas e não precisam ser

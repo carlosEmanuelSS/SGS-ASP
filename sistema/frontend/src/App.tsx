@@ -7,6 +7,9 @@ import { Oficinas } from "./features/oficinas/Oficinas";
 import { Frequencia } from "./features/frequencia/Frequencia";
 import { Registros } from "./features/gestao/Registros";
 import { Relatorios } from "./features/gestao/Relatorios";
+import { Icon } from "./Icon";
+import logoAsp from "./assets/logo-asp.png";
+import mascoteAsp from "./assets/mascote-asp.png";
 import { Senha } from "./features/gestao/Senha";
 type Modulo =
   | "alunos"
@@ -23,6 +26,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [ajudaSenha, setAjudaSenha] = useState(false);
   const [modulo, setModulo] = useState<Modulo>("alunos");
   function navegar(next: Modulo) {
     if (next === modulo) {
@@ -37,6 +41,51 @@ export default function App() {
     setModulo(next);
     setMenuAberto(false);
   }
+  useEffect(() => {
+    if (!menuAberto) return;
+    const sidebar = document.getElementById("navigation-sidebar");
+    const toggle = document.querySelector<HTMLButtonElement>(".menu-toggle");
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sidebar?.querySelector<HTMLButtonElement>(".drawer-close")?.focus();
+    const close = () => {
+      setMenuAberto(false);
+      toggle?.focus();
+    };
+    const media = window.matchMedia("(min-width: 961px)");
+    const resize = () => {
+      if (media.matches) setMenuAberto(false);
+    };
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+      if (event.key === "Tab") {
+        const items = sidebar?.querySelectorAll<HTMLElement>(
+          "a[href], button:not(:disabled)",
+        );
+        if (!items?.length) return;
+        const first = items[0],
+          last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", keyboard);
+    media.addEventListener("change", resize);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", keyboard);
+      media.removeEventListener("change", resize);
+      if (!media.matches) toggle?.focus();
+    };
+  }, [menuAberto]);
   async function check() {
     setChecking(true);
     setError("");
@@ -55,6 +104,7 @@ export default function App() {
     void check();
     const expired = () => {
       setUser(null);
+      setMenuAberto(false);
       setError("Sua sessão expirou. Entre novamente.");
     };
     window.addEventListener("session-expired", expired);
@@ -108,63 +158,89 @@ export default function App() {
   if (!user)
     return (
       <main className="login">
-        <div className="login-intro">
-          <span className="brand-mark">A</span>
-          <p className="eyebrow">AÇÃO SOCIAL DO PLANALTO</p>
-          <h1>
-            Cuidar começa
-            <br />
-            por conhecer.
-          </h1>
-          <p>
-            Informações organizadas para acompanhar cada aluno e sua família.
-          </p>
-        </div>
-        <form className="card login-form" onSubmit={entrar}>
-          <p className="eyebrow">SGS ASP</p>
-          <h2>Acesse sua conta</h2>
-          <p>Use o acesso fornecido pela administração.</p>
+        <form className="login-card" onSubmit={entrar}>
+          <img
+            className="login-mascote"
+            src={mascoteAsp}
+            alt=""
+            width={380}
+            height={354}
+          />
+          <h1>Bem-vindo ao Portal ASP</h1>
+          <p className="login-subtitle">Ação Social do Planalto · Desde 1963</p>
           {error && (
             <div className="error" role="alert">
               {error}
             </div>
           )}
-          <label>
-            Usuário
+          <label className="login-field">
+            <span className="login-field-icon" aria-hidden="true">
+              <Icon name="user" />
+            </span>
+            <span className="login-field-label">Usuário</span>
             <input
               name="username"
               autoComplete="username"
+              placeholder="Nome de usuário"
               required
               maxLength={150}
             />
           </label>
-          <label>
-            Senha
+          <label className="login-field">
+            <span className="login-field-icon" aria-hidden="true">
+              <Icon name="lock" />
+            </span>
+            <span className="login-field-label">Senha</span>
             <input
               name="password"
               type="password"
               autoComplete="current-password"
+              placeholder="Sua senha"
               required
               maxLength={1024}
             />
           </label>
-          <button disabled={busy}>
-            {busy ? "Entrando…" : "Entrar no sistema"}
-          </button>
           <button
             type="button"
-            className="link"
+            className="link login-forgot"
+            aria-expanded={ajudaSenha}
+            onClick={() => setAjudaSenha(!ajudaSenha)}
+          >
+            Esqueci minha senha?
+          </button>
+          {ajudaSenha && (
+            <p className="login-hint" role="status">
+              Peça ao administrador do sistema para redefinir sua senha.
+            </p>
+          )}
+          <button className="login-submit" disabled={busy}>
+            {busy ? "Entrando…" : "Entrar"}
+          </button>
+          <p className="login-help">
+            Não tem acesso? Solicite à administração da ASP.
+          </p>
+          <button
+            type="button"
+            className="link login-check"
             disabled={busy}
             onClick={() => void check()}
           >
             Verificar conexão
           </button>
         </form>
+        <p className="login-footer">
+          <img src={logoAsp} alt="" width={28} height={28} />
+          SGS ASP · Sistema de Gestão Social
+        </p>
       </main>
     );
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header
+        className="app-header"
+        inert={menuAberto}
+        aria-hidden={menuAberto || undefined}
+      >
         <button
           className="secondary menu-toggle"
           aria-expanded={menuAberto}
@@ -175,21 +251,41 @@ export default function App() {
         </button>
         <span className="app-caption">Sistema de Gestão Social</span>
         <div className="user">
-          <span>{user.nome}</span>
+          <span className="header-bell" aria-hidden="true">
+            <Icon name="bell" />
+          </span>
+          <span className="user-avatar" aria-hidden="true">
+            <Icon name="user" />
+          </span>
+          <span className="user-name">{user.nome}</span>
+          <Icon name="chevron" />
         </div>
       </header>
+      {menuAberto && (
+        <div
+          className="sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setMenuAberto(false)}
+        />
+      )}
       <aside
         id="navigation-sidebar"
         className={`sidebar${menuAberto ? " is-open" : ""}`}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && menuAberto) {
-            setMenuAberto(false);
-            document.querySelector<HTMLButtonElement>(".menu-toggle")?.focus();
-          }
-        }}
+        role={menuAberto ? "dialog" : undefined}
+        aria-modal={menuAberto || undefined}
+        aria-label={menuAberto ? "Navegação do sistema" : undefined}
       >
+        <button
+          className="secondary drawer-close"
+          onClick={() => setMenuAberto(false)}
+          aria-label="Fechar menu"
+        >
+          <Icon name="close" />
+        </button>
         <a className="brand" href="/">
-          <span className="brand-mark">A</span>
+          <span className="brand-mark">
+            <img src={logoAsp} alt="" width={40} height={40} />
+          </span>
           <span>
             ASP <small>Gestão Social</small>
           </span>
@@ -201,6 +297,7 @@ export default function App() {
               aria-current={modulo === "painel" ? "page" : undefined}
               onClick={() => navegar("painel")}
             >
+              <Icon name="home" />
               Visão geral
             </button>
           )}
@@ -210,6 +307,7 @@ export default function App() {
               aria-current={modulo === "alunos" ? "page" : undefined}
               onClick={() => navegar("alunos")}
             >
+              <Icon name="users" />
               Alunos
             </button>
           )}
@@ -219,6 +317,7 @@ export default function App() {
               aria-current={modulo === "oficinas" ? "page" : undefined}
               onClick={() => navegar("oficinas")}
             >
+              <Icon name="book" />
               Oficinas e matrículas
             </button>
           )}
@@ -228,6 +327,7 @@ export default function App() {
               aria-current={modulo === "frequencia" ? "page" : undefined}
               onClick={() => navegar("frequencia")}
             >
+              <Icon name="calendar" />
               Frequência
             </button>
           )}
@@ -237,6 +337,7 @@ export default function App() {
               aria-current={modulo === "atendimentos" ? "page" : undefined}
               onClick={() => navegar("atendimentos")}
             >
+              <Icon name="heart" />
               Atendimentos
             </button>
           )}
@@ -246,6 +347,7 @@ export default function App() {
               aria-current={modulo === "doacoes" ? "page" : undefined}
               onClick={() => navegar("doacoes")}
             >
+              <Icon name="gift" />
               Doações
             </button>
           )}
@@ -255,6 +357,7 @@ export default function App() {
               aria-current={modulo === "relatorios" ? "page" : undefined}
               onClick={() => navegar("relatorios")}
             >
+              <Icon name="chart" />
               Relatórios
             </button>
           )}
@@ -262,10 +365,12 @@ export default function App() {
         <div className="sidebar-actions">
           {user.administrador && (
             <a href="/admin/" target="_blank" rel="noreferrer">
+              <Icon name="user" />
               Administrar usuários
             </a>
           )}
           <button className="secondary" onClick={() => navegar("senha")}>
+            <Icon name="lock" />
             Alterar senha
           </button>
           <button
@@ -273,11 +378,16 @@ export default function App() {
             onClick={() => void sair()}
             disabled={busy}
           >
+            <Icon name="logout" />
             Sair
           </button>
         </div>
       </aside>
-      <main className="workspace">
+      <main
+        className="workspace"
+        inert={menuAberto}
+        aria-hidden={menuAberto || undefined}
+      >
         {error && (
           <p role="alert" className="error">
             {error}
@@ -306,7 +416,9 @@ export default function App() {
           </p>
         )}
       </main>
-      <footer>Ação Social do Planalto · Sistema de Gestão Social</footer>
+      <footer inert={menuAberto} aria-hidden={menuAberto || undefined}>
+        Ação Social do Planalto · Sistema de Gestão Social
+      </footer>
     </div>
   );
 }

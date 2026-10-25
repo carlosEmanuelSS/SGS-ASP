@@ -9,7 +9,8 @@ FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app/backend
 COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home --uid 10001 sgs
+RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home --uid 10001 sgs \
+    && install -d -o sgs -g sgs /app/backend/staticfiles
 COPY --chown=sgs:sgs backend/ ./
 COPY --from=frontend --chown=sgs:sgs /frontend/dist /app/frontend/dist
 USER sgs

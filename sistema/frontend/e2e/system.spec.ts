@@ -6,7 +6,7 @@ async function entrar(
 ) {
   await page.getByLabel("Usuário", { exact: true }).fill(user);
   await page.getByLabel("Senha", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Entrar no sistema" }).click();
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page.locator(".app-shell")).toBeVisible();
 }
 async function navegar(page: Page, name: string) {
@@ -23,7 +23,7 @@ async function sair(page: Page) {
     await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Sair", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Entrar no sistema" }),
+    page.getByRole("button", { name: "Entrar", exact: true }),
   ).toBeVisible();
 }
 test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequência e responsividade", async ({
@@ -225,4 +225,52 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   ).toBeVisible();
   await sair(page);
   expect(errors).toEqual([]);
+});
+
+test("revisão visual e navegação por teclado no menu móvel", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1904, height: 1070 });
+  await page.goto("/");
+  await entrar(page, "admin_e2e");
+  await navegar(page, "Visão geral");
+  await expect(page.locator(".metric-card")).toHaveCount(4);
+  await expect(page.getByText("Calculando indicadores…")).toHaveCount(0);
+  await page.getByRole("button", { name: "Atualizar indicadores" }).click();
+  await expect(page.getByText("Calculando indicadores…")).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/visao-geral-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 320, height: 800 });
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  await menu.click();
+  const close = page
+    .locator(".sidebar")
+    .getByRole("button", { name: "Fechar menu", exact: true });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    page.getByRole("button", { name: "Sair", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.screenshot({ path: "test-results/menu-mobile.png" });
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+  await expect(page.locator(".sidebar")).toBeHidden();
+  await expect(page.locator("main.workspace")).not.toHaveAttribute("inert");
+  await page.screenshot({
+    path: "test-results/visao-geral-mobile.png",
+    fullPage: true,
+  });
+  await menu.click();
+  await page
+    .locator(".sidebar-backdrop")
+    .click({ position: { x: 310, y: 400 } });
+  await expect(menu).toBeFocused();
+  await menu.click();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".sidebar-backdrop")).toHaveCount(0);
+  await expect(page.locator("main.workspace")).not.toHaveAttribute("inert");
 });

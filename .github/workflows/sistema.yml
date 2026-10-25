@@ -105,7 +105,7 @@ jobs:
       - run: docker compose -f compose.prod.yaml -f compose.ci.yaml up -d app
       - name: HTTP pelo servidor de produção
         run: |
-          curl --retry 20 --retry-connrefused --retry-delay 2 --fail http://localhost:8000/healthz/
+          curl --retry 20 --retry-all-errors --retry-delay 2 --fail http://localhost:8000/healthz/
           curl --fail -H 'X-Forwarded-Proto: https' http://localhost:8000/ > /tmp/sgs-index.html
           grep -q 'id="root"' /tmp/sgs-index.html
       - name: Encerrar ambiente temporário
