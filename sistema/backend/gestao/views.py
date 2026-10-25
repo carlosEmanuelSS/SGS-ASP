@@ -1,8 +1,9 @@
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 from alunos.views import endpoint
@@ -59,11 +60,22 @@ def periodo(request):
 def listar(request, records):
     query = request.GET.get('q', '').strip()[:160]
     if records.model is Atendimento:
+        base = records
         records = records.select_related('autor', 'aluno').filter(aluno__nome__icontains=query)
         if request.GET.get('aluno'):
             records = records.filter(aluno_id=UUID(request.GET['aluno']))
+        tipo = request.GET.get('tipo', '')
+        if tipo and tipo not in dict(Atendimento.TIPOS):
+            raise ValueError()
+        if tipo:
+            records = records.filter(tipo=tipo)
     else:
         records = records.select_related('autor').filter(Q(doador__icontains=query) | Q(descricao__icontains=query))
+        categoria = request.GET.get('categoria', '')
+        if categoria not in ['', 'dinheiro', 'bens']:
+            raise ValueError()
+        if categoria:
+            records = records.filter(tipo='dinheiro') if categoria == 'dinheiro' else records.exclude(tipo='dinheiro')
     status = request.GET.get('status', '')
     if status not in ['', 'ativo', 'cancelado']:
         raise ValueError()
@@ -72,8 +84,33 @@ def listar(request, records):
     if request.GET.get('inicio') or request.GET.get('fim'):
         records = records.filter(data__range=periodo(request))
     page = Paginator(records, 20).get_page(request.GET.get('page', '1'))
-    return JsonResponse({'items': [item(obj, request.user) for obj in page],
-        'total': page.paginator.count, 'page': page.number, 'pages': page.paginator.num_pages})
+    data = {'items': [item(obj, request.user) for obj in page],
+        'total': page.paginator.count, 'page': page.number, 'pages': page.paginator.num_pages}
+    if records.model is Doacao:
+        data['resumo'] = resumo_doacoes()
+    elif not request.GET.get('aluno'):
+        data['resumo'] = resumo_atendimentos(base)
+    return JsonResponse(data)
+
+
+def resumo_atendimentos(visiveis):
+    """Totais dos atendimentos que o usuário pode ver (sigilo já aplicado), sem os cancelados."""
+    validos = visiveis.filter(cancelado=False)
+    inicio_mes = timezone.localdate().replace(day=1)
+    return {'total': validos.count(), 'mes': validos.filter(data__gte=inicio_mes).count(),
+            'alunos': validos.values('aluno').distinct().count(),
+            'sigilosos': validos.exclude(nivel='publico').count()}
+
+
+def resumo_doacoes():
+    """Totais das doações válidas (não canceladas), independentes dos filtros da lista."""
+    validas = Doacao.objects.filter(cancelado=False)
+    dinheiro = validas.filter(tipo='dinheiro')
+    inicio_mes = timezone.localdate().replace(day=1)
+    soma = lambda qs: str((qs.aggregate(v=Sum('valor'))['v'] or Decimal('0')).quantize(Decimal('0.01')))
+    return {'total_dinheiro': soma(dinheiro), 'dinheiro_mes': soma(dinheiro.filter(data__gte=inicio_mes)),
+            'doacoes_dinheiro': dinheiro.count(), 'doacoes_bens': validas.exclude(tipo='dinheiro').count(),
+            'doadores': validas.exclude(doador='').values('doador').distinct().count()}
 
 
 def gravar(request, form_class, obj=None):

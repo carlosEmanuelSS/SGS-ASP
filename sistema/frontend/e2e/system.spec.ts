@@ -36,7 +36,7 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   await entrar(page, "tecnico_e2e");
   await navegar(page, "Atendimentos");
   await page
-    .getByRole("button", { name: "+ Registrar atendimento", exact: true })
+    .getByRole("button", { name: "Registrar atendimento", exact: true })
     .click();
   await page
     .getByLabel("Aluno *", { exact: true })
@@ -97,7 +97,7 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   ).toBeVisible();
   await navegar(page, "Doações");
   await page
-    .getByRole("button", { name: "+ Registrar doação", exact: true })
+    .getByRole("button", { name: "Registrar doação", exact: true })
     .click();
   await page.getByLabel("Doador", { exact: true }).fill("Doador E2E");
   await page.getByLabel("Valor (R$) *", { exact: true }).fill("125.50");
@@ -163,7 +163,11 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
               ? "Oficinas e Turmas"
               : name === "Relatórios"
                 ? "Relatórios & Indicadores"
-                : name,
+                : name === "Doações"
+                  ? "Doações & Recursos"
+                  : name === "Atendimentos"
+                    ? "Atendimentos Individuais"
+                    : name,
           exact: true,
         }),
       ).toBeVisible();

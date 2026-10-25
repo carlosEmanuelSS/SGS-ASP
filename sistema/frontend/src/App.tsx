@@ -256,14 +256,10 @@ export default function App() {
         </button>
         <span className="app-caption">Sistema de Gestão Social</span>
         <div className="user">
-          <span className="header-bell" aria-hidden="true">
-            <Icon name="bell" />
-          </span>
           <span className="user-avatar" aria-hidden="true">
             <Icon name="user" />
           </span>
           <span className="user-name">{user.nome}</span>
-          <Icon name="chevron" />
         </div>
       </header>
       {menuAberto && (

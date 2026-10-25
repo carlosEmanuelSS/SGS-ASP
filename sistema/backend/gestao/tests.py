@@ -63,6 +63,10 @@ class GestaoTests(TestCase):
         listagem = self.client.get('/api/atendimentos/').json()
         self.assertNotIn('descricao', listagem['items'][0])
         self.assertNotIn('encaminhamento', listagem['items'][0])
+        self.assertEqual((listagem['resumo']['total'], listagem['resumo']['alunos']), (1, 1))
+        self.assertEqual(listagem['resumo']['sigilosos'], 0 if obj.nivel == 'publico' else 1)
+        self.assertEqual(self.client.get(f'/api/atendimentos/?tipo={obj.tipo}').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/atendimentos/?tipo=inexistente').status_code, 400)
 
     def test_confidencial_invisivel_inclusive_para_admin(self):
         self.post()
@@ -70,6 +74,8 @@ class GestaoTests(TestCase):
         for user in [self.outro, self.secretaria, self.coordenacao, self.admin]:
             self.entrar(user)
             self.assertEqual(self.client.get('/api/atendimentos/').json()['total'], 0)
+            # O resumo também respeita o sigilo: o relato confidencial não entra na contagem.
+            self.assertEqual(self.client.get('/api/atendimentos/').json()['resumo']['total'], 0)
             self.assertEqual(self.client.get(f'/api/atendimentos/{obj.pk}/').status_code, 404)
             self.assertEqual(self.editar(obj).status_code, 404 if user != self.coordenacao else 403)
             report = self.client.get('/api/relatorios/').json()
@@ -158,6 +164,13 @@ class GestaoTests(TestCase):
         report = self.client.get('/api/relatorios/').json()['doacoes']
         self.assertEqual(report['total'], 2)
         self.assertEqual(report['valor'], '125.50')
+        lista = self.client.get('/api/doacoes/').json()
+        self.assertEqual(lista['resumo']['total_dinheiro'], '125.50')
+        self.assertEqual(lista['resumo']['dinheiro_mes'], '125.50')
+        self.assertEqual((lista['resumo']['doacoes_dinheiro'], lista['resumo']['doacoes_bens']), (1, 1))
+        self.assertEqual(self.client.get('/api/doacoes/?categoria=dinheiro').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/doacoes/?categoria=bens').json()['items'][0]['tipo'], 'alimentos')
+        self.assertEqual(self.client.get('/api/doacoes/?categoria=outra').status_code, 400)
 
     def test_doacao_valores_invalidos_e_nao_mistura_unidades(self):
         for extra in [{'valor': '0'}, {'valor': '-1'}, {'valor': 'NaN'}, {'valor': '12.345'},

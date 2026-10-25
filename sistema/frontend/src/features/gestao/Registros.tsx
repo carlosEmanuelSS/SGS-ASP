@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { api, ApiError, mensagem } from "../../api";
 import type { Lista, User } from "../../api";
-import { CabecalhoModulo, Esqueleto } from "../../ui";
+import { Icon } from "../../Icon";
+import type { IconName } from "../../Icon";
+import { Contador, Esqueleto, iniciais, tomAvatar } from "../../ui";
 
 export const tiposAtendimento: Record<string, string> = {
   social: "Social",
@@ -61,7 +63,53 @@ type Registro = {
     dados: Record<string, unknown>;
   }[];
 };
-type Pagina = { items: Registro[]; total: number; page: number; pages: number };
+type ResumoDoacoes = {
+  total_dinheiro: string;
+  dinheiro_mes: string;
+  doacoes_dinheiro: number;
+  doacoes_bens: number;
+  doadores: number;
+};
+type Pagina = {
+  items: Registro[];
+  total: number;
+  page: number;
+  pages: number;
+  /** Doações e atendimentos devolvem resumos diferentes; cada tela lê só os seus campos. */
+  resumo?: ResumoDoacoes & ResumoAtendimentos;
+};
+type ResumoAtendimentos = {
+  total: number;
+  mes: number;
+  alunos: number;
+  sigilosos: number;
+};
+const iconesAtendimento: Record<string, IconName> = {
+  social: "users",
+  psicologico: "heart",
+  visita_domiciliar: "home",
+  encaminhamento: "arrowRight",
+  outro: "info",
+};
+const sigiloTom: Record<string, string> = {
+  publico: "seal-publico",
+  restrito: "seal-restrito",
+  confidencial: "seal-confidencial",
+};
+const sigiloExplica: Record<string, string> = {
+  publico: "Visível para as equipes autorizadas a consultar atendimentos.",
+  restrito: "Visível apenas para a equipe técnica.",
+  confidencial:
+    "Visível somente para quem registrou — nem administradores leem este relato.",
+};
+type Categoria = "" | "dinheiro" | "bens";
+const brl = (v: string | number | null | undefined) =>
+  Number(v ?? 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+const quantidade = (q: string | null | undefined, unidade?: string) =>
+  `${Number(q ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${unidade ?? ""}`.trim();
 const dia = () => {
   const d = new Date();
   return [
@@ -90,6 +138,8 @@ export function Registros({
     : user.pode_criar_doacoes;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [categoria, setCategoria] = useState<Categoria>("");
+  const [tipoFiltro, setTipoFiltro] = useState("");
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [list, setList] = useState<Pagina | null>(null);
@@ -108,6 +158,8 @@ export function Registros({
         status,
         page: String(page),
         ...(aluno ? { aluno: aluno.id } : {}),
+        ...(!atendimento && categoria ? { categoria } : {}),
+        ...(atendimento && tipoFiltro ? { tipo: tipoFiltro } : {}),
       });
       void api<Pagina>(
         tipo + "/?" + params,
@@ -124,7 +176,17 @@ export function Registros({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [tipo, query, status, page, revision, aluno?.id]);
+  }, [
+    tipo,
+    query,
+    status,
+    categoria,
+    tipoFiltro,
+    page,
+    revision,
+    aluno?.id,
+    atendimento,
+  ]);
   async function abrir(id: string) {
     setBusy(true);
     setError("");
@@ -163,71 +225,185 @@ export function Registros({
         }}
       />
     );
+  const doacoesPage = !atendimento && !aluno;
+  const atendimentosPage = atendimento && !aluno;
   const title = atendimento
     ? aluno
       ? "Atendimentos do aluno"
       : "Atendimentos"
     : "Doações";
-  const descricao = atendimento
-    ? "Acompanhamento com sigilo e histórico preservado."
-    : "Registro das doações recebidas pela instituição.";
-  const acoes = (
-    <>
-      {view === "list" && podeCriar && (
-        <button
-          onClick={() => {
-            setSelected(null);
-            setNotice("");
-            setView("form");
-          }}
-        >
-          + {atendimento ? "Registrar atendimento" : "Registrar doação"}
-        </button>
-      )}
-      {view === "details" && selected?.pode_editar && (
-        <button onClick={() => setView("form")}>Corrigir ou cancelar</button>
-      )}
-    </>
-  );
+  const novo = () => {
+    setSelected(null);
+    setNotice("");
+    setView("form");
+  };
+  function filtrar<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setPage(1);
+    };
+  }
   return (
-    <section className={aluno ? "attendance-section" : undefined}>
+    <section
+      className={
+        aluno
+          ? "attendance-section"
+          : doacoesPage
+            ? "donations-page"
+            : "appointments-page"
+      }
+    >
       {view === "details" && (
-        <button className="link" onClick={voltar}>
-          ← Voltar para {title.toLowerCase()}
+        <button className="link back-link" onClick={voltar}>
+          <Icon name="arrowLeft" />
+          Voltar para {title.toLowerCase()}
         </button>
       )}
       {aluno ? (
         <div className="page-title">
           <div>
             <h2>{title}</h2>
-            <p>{descricao}</p>
+            <p>Acompanhamento com sigilo e histórico preservado.</p>
           </div>
-          {acoes}
+          {view === "list" && podeCriar && (
+            <button className="btn-primary" onClick={novo}>
+              <Icon name="plus" />
+              Registrar atendimento
+            </button>
+          )}
+          {view === "details" && selected?.pode_editar && (
+            <button className="btn-outline" onClick={() => setView("form")}>
+              Corrigir ou cancelar
+            </button>
+          )}
         </div>
       ) : (
-        <CabecalhoModulo
-          modulo={tipo}
-          eyebrow={
-            atendimento
-              ? "ACOMPANHAMENTO SOCIOASSISTENCIAL"
-              : "APOIO À INSTITUIÇÃO"
-          }
-          titulo={title}
-          descricao={descricao}
-          acao={acoes}
-          resumo={
-            view === "list" && list
-              ? [
-                  {
-                    rotulo: atendimento
-                      ? "Registros acessíveis"
-                      : "Doações registradas",
-                    valor: list.total,
-                  },
-                ]
-              : undefined
-          }
-        />
+        <>
+          <header className="page-head">
+            <div className="page-head-main">
+              <span
+                className={`page-icon ${doacoesPage ? "tone-amber" : "tone-violet"}`}
+                aria-hidden="true"
+              >
+                <Icon name={doacoesPage ? "gift" : "heart"} />
+              </span>
+              <div>
+                <span className="head-chips">
+                  <span
+                    className={`eyebrow-chip${atendimentosPage ? " chip-violet" : ""}`}
+                  >
+                    {doacoesPage
+                      ? "Apoio institucional"
+                      : "Acompanhamento socioassistencial"}
+                  </span>
+                  {atendimentosPage && (
+                    <span className="eyebrow-chip chip-lock">
+                      <Icon name="lock" />
+                      Prontuário restrito
+                    </span>
+                  )}
+                </span>
+                <h1>
+                  {doacoesPage
+                    ? "Doações & Recursos"
+                    : "Atendimentos Individuais"}
+                </h1>
+                <p>
+                  {doacoesPage
+                    ? "Gestão e rastreabilidade das contribuições financeiras e dos donativos recebidos."
+                    : "Histórico de escutas, suporte psicológico e visitas de campo, com prontuário protegido por nível de sigilo."}
+                </p>
+              </div>
+            </div>
+            {view === "list" && podeCriar && (
+              <button className="btn-primary" onClick={novo}>
+                <Icon name="plus" />
+                {doacoesPage ? "Registrar doação" : "Registrar atendimento"}
+              </button>
+            )}
+            {view === "details" && selected?.pode_editar && (
+              <button
+                className="btn-outline btn-lg"
+                onClick={() => setView("form")}
+              >
+                <Icon name="pencil" />
+                Corrigir ou cancelar
+              </button>
+            )}
+          </header>
+          {view === "list" && list?.resumo && (
+            <section
+              className="report-kpis"
+              aria-label={
+                doacoesPage ? "Resumo das doações" : "Resumo dos atendimentos"
+              }
+            >
+              {doacoesPage ? (
+                <>
+                  <Kpi
+                    rotulo="Total em dinheiro"
+                    icone="wallet"
+                    tom="tone-green-soft"
+                    valor={brl(list.resumo.total_dinheiro)}
+                    nota={`${list.resumo.doacoes_dinheiro} ${list.resumo.doacoes_dinheiro === 1 ? "doação em dinheiro" : "doações em dinheiro"}`}
+                  />
+                  <Kpi
+                    rotulo="Arrecadado no mês"
+                    icone="chart"
+                    tom="tone-blue-soft"
+                    valor={brl(list.resumo.dinheiro_mes)}
+                    nota="somente valores em dinheiro"
+                  />
+                  <Kpi
+                    rotulo="Itens e materiais"
+                    icone="gift"
+                    tom="tone-amber-soft"
+                    valor={<Contador valor={list.resumo.doacoes_bens} />}
+                    nota="doações de alimentos, roupas e materiais"
+                  />
+                  <Kpi
+                    rotulo="Doadores"
+                    icone="users"
+                    tom="tone-slate"
+                    valor={<Contador valor={list.resumo.doadores} />}
+                    nota="pessoas ou empresas identificadas"
+                  />
+                </>
+              ) : (
+                <>
+                  <Kpi
+                    rotulo="Total registrado"
+                    icone="book"
+                    tom="tone-violet-soft"
+                    valor={<Contador valor={list.resumo.total} />}
+                    nota="atendimentos ativos que você pode ver"
+                  />
+                  <Kpi
+                    rotulo="Neste mês"
+                    icone="calendar"
+                    tom="tone-blue-soft"
+                    valor={<Contador valor={list.resumo.mes} />}
+                    nota="desde o dia 1º"
+                  />
+                  <Kpi
+                    rotulo="Alunos acompanhados"
+                    icone="users"
+                    tom="tone-green-soft"
+                    valor={<Contador valor={list.resumo.alunos} />}
+                    nota="com ao menos um atendimento"
+                  />
+                  <Kpi
+                    rotulo="Com sigilo"
+                    icone="lock"
+                    tom="tone-rose-soft"
+                    valor={<Contador valor={list.resumo.sigilosos} />}
+                    nota="restritos à equipe técnica ou ao autor"
+                  />
+                </>
+              )}
+            </section>
+          )}
+        </>
       )}
       {error && (
         <p className="error" role="alert">
@@ -240,187 +416,659 @@ export function Registros({
         </p>
       )}
       {view === "details" && selected ? (
-        <div className="card">
-          <span
-            className={"badge " + (selected.cancelado ? "inativo" : "ativo")}
-          >
-            {selected.cancelado ? "Cancelado" : "Ativo"}
-          </span>
-          <dl>
-            {Object.entries(labels)
-              .filter(([k]) => k in selected && k !== "cancelado")
-              .map(([k, label]) => (
-                <div className={k === "descricao" ? "full" : undefined} key={k}>
-                  <dt>{label}</dt>
-                  <dd>
-                    {exibir(
-                      k,
-                      (selected as unknown as Record<string, unknown>)[k],
-                      tipos,
-                    )}
-                  </dd>
-                </div>
-              ))}
-          </dl>
-          <p>
-            Registrado por {selected.autor} · Versão {selected.versao}
-          </p>
-          <h2>Histórico do registro</h2>
-          {selected.revisoes?.map((r) => (
-            <details className="record-revision" key={r.versao}>
-              <summary>
-                Versão {r.versao} · {r.autor} ·{" "}
-                {new Date(r.criado_em).toLocaleString("pt-BR")}
-              </summary>
-              {r.motivo && <p>Motivo: {r.motivo}</p>}
-              <dl>
-                {Object.entries(labels)
-                  .filter(([k]) => k in r.dados)
-                  .map(([k, label]) => (
-                    <div
-                      key={k}
-                      className={k === "descricao" ? "full" : undefined}
-                    >
-                      <dt>{label}</dt>
-                      <dd>{exibir(k, r.dados[k], tipos)}</dd>
-                    </div>
-                  ))}
-              </dl>
-            </details>
-          ))}
-        </div>
-      ) : (
-        <div className="card table-card">
-          <div className="toolbar">
-            <label className="search">
-              Buscar {atendimento ? "por aluno" : "por doador ou descrição"}
-              <input
-                value={query}
-                maxLength={160}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-              />
-            </label>
-            <label>
-              Situação
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">Todas</option>
-                <option value="ativo">Ativos</option>
-                <option value="cancelado">Cancelados</option>
-              </select>
-            </label>
+        atendimento ? (
+          <DetalheAtendimento r={selected} />
+        ) : (
+          <div className="card">
+            <span
+              className={"badge " + (selected.cancelado ? "inativo" : "ativo")}
+            >
+              {selected.cancelado ? "Cancelado" : "Ativo"}
+            </span>
+            <dl>
+              {Object.entries(labels)
+                .filter(([k]) => k in selected && k !== "cancelado")
+                .map(([k, label]) => (
+                  <div
+                    className={k === "descricao" ? "full" : undefined}
+                    key={k}
+                  >
+                    <dt>{label}</dt>
+                    <dd>
+                      {exibir(
+                        k,
+                        (selected as unknown as Record<string, unknown>)[k],
+                        tipos,
+                      )}
+                    </dd>
+                  </div>
+                ))}
+            </dl>
+            <p>
+              Registrado por {selected.autor} · Versão {selected.versao}
+            </p>
+            <h2>Histórico do registro</h2>
+            <Revisoes r={selected} tipos={tipos} />
           </div>
-          {!list ? (
-            error ? (
-              <p className="empty" role="status">
-                Não foi possível carregar os registros.
-              </p>
-            ) : (
-              <Esqueleto tipo="tabela" linhas={4} />
-            )
-          ) : !list.total ? (
-            <p className="empty">Nenhum registro encontrado.</p>
-          ) : (
-            <>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>{atendimento ? "Aluno" : "Doador"}</th>
-                      <th>Tipo</th>
-                      <th>{atendimento ? "Sigilo" : "Valor / quantidade"}</th>
-                      <th>Situação</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.items.map((r) => (
-                      <tr key={r.id}>
-                        <td>{data(r.data)}</td>
-                        <td>
-                          <strong>
-                            {r.aluno_nome || r.doador || "Não informado"}
-                          </strong>
-                          <small>{r.autor}</small>
-                        </td>
-                        <td>{tipos[r.tipo]}</td>
-                        <td>
-                          {atendimento
-                            ? niveis[r.nivel as keyof typeof niveis]
-                            : r.tipo === "dinheiro"
-                              ? Number(r.valor).toLocaleString("pt-BR", {
-                                  style: "currency",
-                                  currency: "BRL",
-                                })
-                              : r.quantidade + " " + r.unidade}
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              "badge " + (r.cancelado ? "inativo" : "ativo")
-                            }
-                          >
-                            {r.cancelado ? "Cancelado" : "Ativo"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="link"
-                            disabled={busy}
-                            onClick={() => void abrir(r.id)}
-                            aria-label={
-                              "Ver registro de " +
-                              data(r.data) +
-                              " " +
-                              (r.aluno_nome || r.doador || "")
-                            }
-                          >
-                            Ver registro →
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="pagination">
-                <span>{list.total} registros encontrados</span>
-                <div>
-                  <button
-                    className="secondary"
-                    disabled={page <= 1}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    Anterior
-                  </button>
-                  <span>
-                    {list.page} de {list.pages}
-                  </span>
-                  <button
-                    className="secondary"
-                    disabled={page >= list.pages}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        )
+      ) : doacoesPage ? (
+        <ListaDoacoes
+          list={list}
+          error={error}
+          busy={busy}
+          query={query}
+          status={status}
+          categoria={categoria}
+          page={page}
+          tipos={tipos}
+          onQuery={filtrar(setQuery)}
+          onStatus={filtrar(setStatus)}
+          onCategoria={filtrar(setCategoria)}
+          onPage={setPage}
+          onAbrir={(id) => void abrir(id)}
+        />
+      ) : (
+        <ListaAtendimentos
+          list={list}
+          error={error}
+          busy={busy}
+          query={query}
+          status={status}
+          tipoFiltro={tipoFiltro}
+          page={page}
+          doAluno={!!aluno}
+          onQuery={filtrar(setQuery)}
+          onStatus={filtrar(setStatus)}
+          onTipo={filtrar(setTipoFiltro)}
+          onPage={setPage}
+          onAbrir={(id) => void abrir(id)}
+        />
       )}
     </section>
   );
 }
+function Kpi({
+  rotulo,
+  icone,
+  tom,
+  valor,
+  nota,
+}: {
+  rotulo: string;
+  icone: IconName;
+  tom: string;
+  valor: ReactNode;
+  nota: string;
+}) {
+  return (
+    <article className="card metric-card stat">
+      <div className="stat-head">
+        <p>{rotulo}</p>
+        <span className={`stat-icon ${tom}`}>
+          <Icon name={icone} />
+        </span>
+      </div>
+      <strong className="stat-value">{valor}</strong>
+      <small>{nota}</small>
+    </article>
+  );
+}
+/** Selo de sigilo: cadeado + quem pode ler, com cor por nível. */
+function SeloSigilo({ nivel }: { nivel?: string }) {
+  const n = nivel || "publico";
+  return (
+    <span className={`seal ${sigiloTom[n] || ""}`}>
+      <Icon name="lock" />
+      {niveis[n as keyof typeof niveis] || n}
+    </span>
+  );
+}
+function Situacao({ cancelado }: { cancelado: boolean }) {
+  return (
+    <span
+      className={`status-badge ${cancelado ? "badge-inativo" : "badge-ativo"}`}
+    >
+      <span
+        className={`status-dot ${cancelado ? "dot-inativo" : "dot-ativo"}`}
+        aria-hidden="true"
+      />
+      {cancelado ? "Cancelado" : "Ativo"}
+    </span>
+  );
+}
+function Revisoes({
+  r,
+  tipos,
+}: {
+  r: Registro;
+  tipos: Record<string, string>;
+}) {
+  return (
+    <>
+      {r.revisoes?.map((rev) => (
+        <details className="record-revision" key={rev.versao}>
+          <summary>
+            Versão {rev.versao} · {rev.autor} ·{" "}
+            {new Date(rev.criado_em).toLocaleString("pt-BR")}
+          </summary>
+          {rev.motivo && <p>Motivo: {rev.motivo}</p>}
+          <dl>
+            {Object.entries(labels)
+              .filter(([k]) => k in rev.dados)
+              .map(([k, label]) => (
+                <div key={k} className={k === "descricao" ? "full" : undefined}>
+                  <dt>{label}</dt>
+                  <dd>{exibir(k, rev.dados[k], tipos)}</dd>
+                </div>
+              ))}
+          </dl>
+        </details>
+      ))}
+    </>
+  );
+}
+/** Prontuário do atendimento: identidade, sigilo, relato, encaminhamentos e auditoria. */
+function DetalheAtendimento({ r }: { r: Registro }) {
+  const nome = r.aluno_nome || "Aluno";
+  const nivel = r.nivel || "publico";
+  return (
+    <div className="record-page">
+      <article className="card record-head">
+        <div className="record-chips">
+          <SeloSigilo nivel={nivel} />
+          <Situacao cancelado={r.cancelado} />
+        </div>
+        <h2 className="record-title">
+          <span className="record-kind" aria-hidden="true">
+            <Icon name={iconesAtendimento[r.tipo] || "info"} />
+          </span>
+          {tiposAtendimento[r.tipo] || r.tipo}
+        </h2>
+        <p className="record-meta">
+          <Icon name="calendar" />
+          Realizado em {data(r.data)}
+          <span aria-hidden="true">•</span>
+          Versão {r.versao}
+        </p>
+        <div className="record-people">
+          <div className="person">
+            <span
+              className={`avatar avatar-${tomAvatar(nome)}`}
+              aria-hidden="true"
+            >
+              {iniciais(nome)}
+            </span>
+            <div>
+              <small className="cell-sub">Aluno acompanhado</small>
+              <span className="cell-main">{nome}</span>
+            </div>
+          </div>
+          <div className="person">
+            <span className="avatar avatar-pro" aria-hidden="true">
+              <Icon name="user" />
+            </span>
+            <div>
+              <small className="cell-sub">Profissional responsável</small>
+              <span className="cell-main">{r.autor}</span>
+            </div>
+          </div>
+        </div>
+        <p className={`privacy-note ${sigiloTom[nivel] || ""}`}>
+          <Icon name="lock" />
+          <span>
+            <strong>Informação sigilosa.</strong> {sigiloExplica[nivel]}
+          </span>
+        </p>
+      </article>
+      <div className="record-body">
+        <section className="card record-block">
+          <h3>
+            <Icon name="book" />
+            Relato e evolução
+          </h3>
+          <p className="record-text">
+            {r.descricao || "Sem relato registrado."}
+          </p>
+        </section>
+        <section className="card record-block">
+          <h3>
+            <Icon name="arrowRight" />
+            Encaminhamentos
+          </h3>
+          {r.encaminhamento ? (
+            <p className="record-text">{r.encaminhamento}</p>
+          ) : (
+            <p className="dashed-note">
+              Nenhum encaminhamento registrado neste atendimento.
+            </p>
+          )}
+        </section>
+      </div>
+      <section className="card record-block">
+        <h3>
+          <Icon name="clock" />
+          Trilha de auditoria
+        </h3>
+        <p className="card-sub">
+          Cada correção gera uma nova versão; as anteriores ficam preservadas.
+        </p>
+        <Revisoes r={r} tipos={tiposAtendimento} />
+      </section>
+    </div>
+  );
+}
+/** Lista de atendimentos no estilo prontuário: busca, filtros e selos de sigilo. */
+function ListaAtendimentos({
+  list,
+  error,
+  busy,
+  query,
+  status,
+  tipoFiltro,
+  page,
+  doAluno,
+  onQuery,
+  onStatus,
+  onTipo,
+  onPage,
+  onAbrir,
+}: {
+  list: Pagina | null;
+  error: string;
+  busy: boolean;
+  query: string;
+  status: string;
+  tipoFiltro: string;
+  page: number;
+  doAluno: boolean;
+  onQuery: (v: string) => void;
+  onStatus: (v: string) => void;
+  onTipo: (v: string) => void;
+  onPage: (v: number) => void;
+  onAbrir: (id: string) => void;
+}) {
+  return (
+    <section className="card data-card">
+      <div className="data-toolbar in-card">
+        {!doAluno && (
+          <label className="search-field">
+            <span className="sr-only">Buscar por aluno</span>
+            <Icon name="search" />
+            <input
+              type="search"
+              value={query}
+              maxLength={160}
+              placeholder="Buscar por aluno"
+              onChange={(e) => onQuery(e.target.value)}
+            />
+          </label>
+        )}
+        <label className="select-field compact">
+          <span className="sr-only">Modalidade</span>
+          <select value={tipoFiltro} onChange={(e) => onTipo(e.target.value)}>
+            <option value="">Todas as modalidades</option>
+            {Object.entries(tiposAtendimento).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="select-field compact">
+          <span className="sr-only">Situação</span>
+          <select value={status} onChange={(e) => onStatus(e.target.value)}>
+            <option value="">Todas as situações</option>
+            <option value="ativo">Ativos</option>
+            <option value="cancelado">Cancelados</option>
+          </select>
+        </label>
+      </div>
+      {!list ? (
+        error ? (
+          <p className="dashed-note">Não foi possível carregar os registros.</p>
+        ) : (
+          <Esqueleto tipo="tabela" linhas={4} />
+        )
+      ) : !list.total ? (
+        <div className="report-empty borderless">
+          <span aria-hidden="true">
+            <Icon name="inbox" />
+          </span>
+          <strong>Nenhum registro encontrado.</strong>
+          <p>
+            Você só vê os atendimentos que seu perfil pode acessar. Ajuste os
+            filtros ou registre um novo atendimento.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  {!doAluno && <th>Aluno</th>}
+                  <th>Modalidade</th>
+                  <th>Nível de sigilo</th>
+                  <th>Situação</th>
+                  <th>
+                    <span className="sr-only">Ação</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.items.map((r) => {
+                  const nome = r.aluno_nome || "Aluno";
+                  return (
+                    <tr key={r.id}>
+                      <td className="muted-cell">
+                        <span className="date-cell">
+                          <Icon name="calendar" />
+                          {data(r.data)}
+                        </span>
+                      </td>
+                      {!doAluno && (
+                        <td>
+                          <div className="person">
+                            <span
+                              className={`avatar avatar-${tomAvatar(nome)}`}
+                              aria-hidden="true"
+                            >
+                              {iniciais(nome)}
+                            </span>
+                            <div>
+                              <span className="cell-main">{nome}</span>
+                              <small className="cell-sub">
+                                Atendido por {r.autor}
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      <td>
+                        <span className="kind-badge kind-care">
+                          <Icon name={iconesAtendimento[r.tipo] || "info"} />
+                          {tiposAtendimento[r.tipo] || r.tipo}
+                        </span>
+                      </td>
+                      <td>
+                        <SeloSigilo nivel={r.nivel} />
+                      </td>
+                      <td>
+                        <Situacao cancelado={r.cancelado} />
+                      </td>
+                      <td className="actions-cell">
+                        <button
+                          className="btn-ghost"
+                          disabled={busy}
+                          onClick={() => onAbrir(r.id)}
+                          aria-label={
+                            "Ver registro de " +
+                            data(r.data) +
+                            " " +
+                            (r.aluno_nome || "")
+                          }
+                        >
+                          Abrir prontuário
+                          <Icon name="arrowRight" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="page-footer in-card">
+            <span>
+              {list.total}{" "}
+              {list.total === 1
+                ? "registro encontrado"
+                : "registros encontrados"}
+            </span>
+            {list.pages > 1 && (
+              <div className="pager">
+                <button
+                  className="pager-btn"
+                  disabled={page <= 1}
+                  onClick={() => onPage(page - 1)}
+                >
+                  Anterior
+                </button>
+                <span>
+                  Página {list.page} de {list.pages}
+                </span>
+                <button
+                  className="pager-btn"
+                  disabled={page >= list.pages}
+                  onClick={() => onPage(page + 1)}
+                >
+                  Próxima
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+/** Lista de doações: abas por categoria, busca com ícone e tabela no padrão data table. */
+function ListaDoacoes({
+  list,
+  error,
+  busy,
+  query,
+  status,
+  categoria,
+  page,
+  tipos,
+  onQuery,
+  onStatus,
+  onCategoria,
+  onPage,
+  onAbrir,
+}: {
+  list: Pagina | null;
+  error: string;
+  busy: boolean;
+  query: string;
+  status: string;
+  categoria: Categoria;
+  page: number;
+  tipos: Record<string, string>;
+  onQuery: (v: string) => void;
+  onStatus: (v: string) => void;
+  onCategoria: (v: Categoria) => void;
+  onPage: (v: number) => void;
+  onAbrir: (id: string) => void;
+}) {
+  const abas: [Categoria, string][] = [
+    ["", "Todas as doações"],
+    ["dinheiro", "Dinheiro"],
+    ["bens", "Itens e materiais"],
+  ];
+  return (
+    <>
+      <section className="card data-card toolbar-card">
+        <div className="data-toolbar">
+          <div className="segmented" role="group" aria-label="Categoria">
+            {abas.map(([valor, rotulo]) => (
+              <button
+                type="button"
+                key={rotulo}
+                className={categoria === valor ? "active" : undefined}
+                aria-pressed={categoria === valor}
+                onClick={() => onCategoria(valor)}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <label className="search-field">
+            <span className="sr-only">Buscar por doador ou descrição</span>
+            <Icon name="search" />
+            <input
+              type="search"
+              value={query}
+              maxLength={160}
+              placeholder="Buscar por doador ou descrição"
+              onChange={(e) => onQuery(e.target.value)}
+            />
+          </label>
+          <label className="select-field compact">
+            <span className="sr-only">Situação</span>
+            <select value={status} onChange={(e) => onStatus(e.target.value)}>
+              <option value="">Todas as situações</option>
+              <option value="ativo">Ativas</option>
+              <option value="cancelado">Canceladas</option>
+            </select>
+          </label>
+        </div>
+      </section>
+      <section className="card data-card">
+        {!list ? (
+          error ? (
+            <p className="dashed-note">Não foi possível carregar as doações.</p>
+          ) : (
+            <Esqueleto tipo="tabela" linhas={4} />
+          )
+        ) : !list.total ? (
+          <div className="report-empty borderless">
+            <span aria-hidden="true">
+              <Icon name="inbox" />
+            </span>
+            <strong>Nenhum registro encontrado.</strong>
+            <p>Ajuste a busca ou a categoria, ou registre uma nova doação.</p>
+          </div>
+        ) : (
+          <>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Doador</th>
+                    <th>Tipo</th>
+                    <th>Valor / quantidade</th>
+                    <th>Situação</th>
+                    <th>
+                      <span className="sr-only">Ações</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.items.map((r) => {
+                    const dinheiro = r.tipo === "dinheiro";
+                    const nome = r.doador || "Doador não informado";
+                    return (
+                      <tr key={r.id}>
+                        <td className="muted-cell">
+                          <span className="date-cell">
+                            <Icon name="calendar" />
+                            {data(r.data)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="person">
+                            <span
+                              className={`avatar avatar-${tomAvatar(nome)}`}
+                              aria-hidden="true"
+                            >
+                              {r.doador ? iniciais(r.doador) : "?"}
+                            </span>
+                            <div>
+                              <span className="cell-main">{nome}</span>
+                              <small className="cell-sub">
+                                registrado por {r.autor}
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`kind-badge ${dinheiro ? "kind-money" : "kind-goods"}`}
+                          >
+                            <Icon name={dinheiro ? "wallet" : "gift"} />
+                            {tipos[r.tipo]}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={dinheiro ? "money-value" : "qty-value"}
+                          >
+                            {dinheiro
+                              ? brl(r.valor)
+                              : quantidade(r.quantidade, r.unidade)}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`status-badge ${r.cancelado ? "badge-inativo" : "badge-ativo"}`}
+                          >
+                            <span
+                              className={`status-dot ${r.cancelado ? "dot-inativo" : "dot-ativo"}`}
+                              aria-hidden="true"
+                            />
+                            {r.cancelado ? "Cancelada" : "Ativa"}
+                          </span>
+                        </td>
+                        <td className="actions-cell">
+                          <button
+                            className="btn-ghost"
+                            disabled={busy}
+                            onClick={() => onAbrir(r.id)}
+                            aria-label={
+                              "Ver registro de " +
+                              data(r.data) +
+                              " " +
+                              (r.doador || "")
+                            }
+                          >
+                            Ver registro
+                            <Icon name="arrowRight" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="page-footer in-card">
+              <span>
+                {list.total}{" "}
+                {list.total === 1
+                  ? "registro encontrado"
+                  : "registros encontrados"}
+              </span>
+              <div className="pager">
+                <button
+                  className="pager-btn"
+                  disabled={page <= 1}
+                  onClick={() => onPage(page - 1)}
+                >
+                  Anterior
+                </button>
+                <span>
+                  Página {list.page} de {list.pages}
+                </span>
+                <button
+                  className="pager-btn"
+                  disabled={page >= list.pages}
+                  onClick={() => onPage(page + 1)}
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    </>
+  );
+}
+
 function exibir(key: string, value: unknown, tipos: Record<string, string>) {
   if (key === "cancelado") return value ? "Sim" : "Não";
   if (value === null || value === "") return "Não informado";
