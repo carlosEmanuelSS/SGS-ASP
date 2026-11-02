@@ -115,7 +115,7 @@ export function AcessosTurma({ id }: { id: string }) {
                   />
                   {u.nome} ({u.usuario})
                   {!u.disponivel
-                    ? " — conta indisponível; remova o vínculo"
+                    ? " (conta indisponível: remova o vínculo)"
                     : ""}
                 </label>
               ))}

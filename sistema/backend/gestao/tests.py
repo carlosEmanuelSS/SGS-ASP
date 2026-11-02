@@ -213,12 +213,22 @@ class GestaoTests(TestCase):
             'educador': 'Professor A', 'aulas': 3, 'total': 3, 'presentes': 0}])
         self.assertEqual(r['alunos']['espera_30_dias'], 0)
         self.assertEqual(self.client.get('/api/relatorios/'+qs+'&educador=Outro').json()['frequencia']['total'], 0)
-        csv = self.client.get('/api/relatorios/'+qs+'&formato=csv')
-        self.assertIn('attachment', csv['Content-Disposition'])
-        self.assertIn("'=HYPERLINK", csv.content.decode())
-        self.assertNotIn(self.aluno.nome, csv.content.decode())
-        self.assertIn('no-store', csv['Cache-Control'])
-        for query in ['?inicio=2020-01-01&fim=2025-01-01', '?inicio=abc', '?formato=html', '?oficina=abc']:
+        xlsx = self.client.get('/api/relatorios/'+qs+'&formato=xlsx')
+        self.assertIn('attachment', xlsx['Content-Disposition'])
+        self.assertIn('.xlsx', xlsx['Content-Disposition'])
+        self.assertIn('no-store', xlsx['Cache-Control'])
+        from io import BytesIO
+        from openpyxl import load_workbook
+        ws = load_workbook(BytesIO(xlsx.content)).active
+        valores = [c.value for row in ws.iter_rows() for c in row if c.value is not None]
+        # O nome com "=" fica como texto, nunca como fórmula; nomes de alunos não saem.
+        celula = next(c for row in ws.iter_rows() for c in row if c.value == oficina.nome)
+        self.assertEqual(celula.data_type, 's')
+        self.assertNotIn(self.aluno.nome, valores)
+        self.assertIn('Frequência por turma', valores)
+        presenca = next(row for row in ws.iter_rows(values_only=True) if row[0] == 'Presença')
+        self.assertEqual(presenca[1], 0)
+        for query in ['?inicio=2020-01-01&fim=2025-01-01', '?inicio=abc', '?formato=html', '?formato=csv', '?oficina=abc']:
             self.assertEqual(self.client.get('/api/relatorios/'+query).status_code, 400)
 
     def test_busca_paginacao_e_filtro_por_aluno_sem_vazamento(self):

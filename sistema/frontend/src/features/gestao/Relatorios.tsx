@@ -112,7 +112,7 @@ export function Relatorios() {
     setError("");
     try {
       const response = await fetch(
-        "/api/relatorios/?" + params + "&formato=csv",
+        "/api/relatorios/?" + params + "&formato=xlsx",
         {
           credentials: "same-origin",
         },
@@ -126,7 +126,11 @@ export function Relatorios() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "relatorio-sgs.csv";
+      // O servidor já nomeia o arquivo com o período (relatorio-sgs-01-10-2026-a-31-10-2026.xlsx).
+      a.download =
+        /filename="([^"]+)"/.exec(
+          response.headers.get("Content-Disposition") || "",
+        )?.[1] || "relatorio-sgs.xlsx";
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
@@ -162,7 +166,7 @@ export function Relatorios() {
           onClick={() => void exportar()}
         >
           <Icon name="download" />
-          Exportar CSV
+          Exportar planilha
         </button>
       </header>
 
@@ -270,7 +274,7 @@ export function Relatorios() {
               detalhe={`${result.frequencia.total} marcações em chamadas`}
             >
               {result.frequencia.percentual === null ? (
-                "—"
+                "Sem chamadas"
               ) : (
                 <Contador
                   valor={Math.round(result.frequencia.percentual)}

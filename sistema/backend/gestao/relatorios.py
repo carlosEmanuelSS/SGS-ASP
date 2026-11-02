@@ -1,4 +1,3 @@
-import csv
 from datetime import timedelta
 from decimal import Decimal
 from django.db.models import Count, Q, Sum
@@ -10,6 +9,7 @@ from alunos.views import endpoint
 from oficinas.models import Oficina
 from frequencia.models import Presenca
 from .models import Doacao
+from .planilha import gerar
 from .views import atendimentos_visiveis, periodo
 
 
@@ -68,49 +68,17 @@ def resumo(request):
     }
 
 
-def celula(value):
-    value = str(value)
-    if value.lstrip().startswith(('=', '+', '-', '@')) or any(c in value for c in ['\t', '\r', '\n']):
-        return "'" + value
-    return value
-
-
 @endpoint(['GET'], 'gestao.ver_indicadores')
 def relatorio(request):
     data = resumo(request)
     formato = request.GET.get('formato', 'json')
     if formato == 'json':
         return JsonResponse(data)
-    if formato != 'csv':
+    if formato != 'xlsx':
         raise ValueError()
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="relatorio-sgs.csv"'
-    response.write('\ufeff')
-    writer = csv.writer(response, delimiter=';', quoting=csv.QUOTE_ALL)
-    def row(*values):
-        writer.writerow([celula(v) for v in values])
-    row('SGS ASP', 'Relatório consolidado')
-    row('Período', data['inicio'], data['fim'])
-    row('Gerado em', data['gerado_em'])
-    row('Alunos (situação atual)', 'Total', 'Ativos', 'Lista de espera', 'Inativos', 'Na espera há mais de 30 dias')
-    row('', *data['alunos'].values())
-    row('Frequência no período', 'Marcações', 'Presenças', 'Faltas', 'Presença %')
-    row('', data['frequencia']['total'], data['frequencia']['presentes'], data['frequencia']['faltas'],
-        data['frequencia']['percentual'] if data['frequencia']['percentual'] is not None else 'Sem chamadas')
-    row('Frequência por turma', 'Oficina', 'Turma', 'Educador', 'Aulas', 'Marcações', 'Presenças')
-    for t in data['por_turma']:
-        row('', t['nome'], t['turma'], t['educador'], t['aulas'], t['total'], t['presentes'])
-    row('Ocupação atual', 'Oficina', 'Turma', 'Unidade', 'Educador', 'Vagas', 'Matrículas ativas')
-    for o in data['ocupacao']:
-        row('', o['nome'], o['turma'], o['unidade'], o['educador'], o['vagas'], o['ocupadas'])
-    row('Idades atuais dos alunos ativos', 'Faixa', 'Total')
-    for faixa, total in data['faixas'].items():
-        row('', faixa, total)
-    row('Atendimentos acessíveis no período', 'Tipo', 'Total')
-    for a in data['atendimentos']:
-        row('', a['tipo'], a['total'])
-    if data['doacoes'] is not None:
-        row('Doações no período', 'Registros', 'Valor em dinheiro (R$)')
-        row('', data['doacoes']['total'], data['doacoes']['valor'])
-    # Não exporta relatos, nomes de alunos, documentos ou dados familiares.
+    # Planilha sem relatos, nomes de alunos, documentos ou dados familiares.
+    response = HttpResponse(gerar(data),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    nome = f"relatorio-sgs-{data['inicio']:%d-%m-%Y}-a-{data['fim']:%d-%m-%Y}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{nome}"'
     return response

@@ -118,9 +118,13 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
     fullPage: true,
   });
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Exportar CSV", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Exportar planilha", exact: true })
+    .click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("relatorio-sgs.csv");
+  expect(download.suggestedFilename()).toMatch(
+    /^relatorio-sgs-\d{2}-\d{2}-\d{4}-a-\d{2}-\d{2}-\d{4}\.xlsx$/,
+  );
   expect(await download.failure()).toBeNull();
   await navegar(page, "Doações");
   await page.getByRole("button", { name: /Ver registro de/ }).click();

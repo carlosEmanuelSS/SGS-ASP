@@ -5,6 +5,15 @@ import type { Lista, User } from "../../api";
 import { Icon } from "../../Icon";
 import type { IconName } from "../../Icon";
 import { Contador, Esqueleto, iniciais, tomAvatar } from "../../ui";
+import {
+  FormFooter,
+  FormProgressHeader,
+  FormSection,
+  OpcoesCartao,
+  Segmentado,
+  useTocados,
+  ValidatedFormField,
+} from "../../forms";
 
 export const tiposAtendimento: Record<string, string> = {
   social: "Social",
@@ -100,7 +109,7 @@ const sigiloExplica: Record<string, string> = {
   publico: "Visível para as equipes autorizadas a consultar atendimentos.",
   restrito: "Visível apenas para a equipe técnica.",
   confidencial:
-    "Visível somente para quem registrou — nem administradores leem este relato.",
+    "Visível somente para quem registrou. Nem administradores leem este relato.",
 };
 type Categoria = "" | "dinheiro" | "bens";
 const brl = (v: string | number | null | undefined) =>
@@ -1079,6 +1088,13 @@ function exibir(key: string, value: unknown, tipos: Record<string, string>) {
   return String(value);
 }
 
+const iconesDoacao: Record<string, IconName> = {
+  dinheiro: "wallet",
+  alimentos: "gift",
+  roupas: "user",
+  materiais: "book",
+  outro: "info",
+};
 function RegistroForm({
   tipo,
   initial,
@@ -1124,6 +1140,7 @@ function RegistroForm({
   const [fields, setFields] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<Lista | null>(null);
+  const tocados = useTocados();
   useEffect(() => {
     if (!dirty) return;
     const leave = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -1159,12 +1176,53 @@ function RegistroForm({
         ? { valor: "", quantidade: "", unidade: "" }
         : {}),
     }));
+    setFields((f) => {
+      const resto = { ...f };
+      delete resto[key];
+      return resto;
+    });
     setDirty(true);
   }
+  // Regras locais espelhando gestao/forms.py; o servidor confirma ao salvar.
+  const locais: Record<string, string> = {};
+  if (atendimento && !form.aluno) locais.aluno = "Selecione o aluno atendido.";
+  if (!form.data) locais.data = "Informe a data.";
+  else if (form.data > dia()) locais.data = "A data não pode ser futura.";
+  if (!form.descricao.trim())
+    locais.descricao = atendimento
+      ? "Descreva o atendimento realizado."
+      : "Descreva o que foi doado.";
+  const dinheiro = !atendimento && form.tipo === "dinheiro";
+  if (dinheiro && !(Number(form.valor) > 0))
+    locais.valor = "Informe um valor maior que zero.";
+  if (!atendimento && !dinheiro) {
+    if (!(Number(form.quantidade) > 0))
+      locais.quantidade = "Informe uma quantidade maior que zero.";
+    if (!form.unidade.trim())
+      locais.unidade = "Informe a unidade: kg, unidades, caixas etc.";
+  }
+  if (initial && !motivo.trim())
+    locais.motivo = "Explique o motivo da correção ou do cancelamento.";
+  const obrigatorios = [
+    ...(atendimento ? ["aluno"] : []),
+    "data",
+    ...(dinheiro ? ["valor"] : atendimento ? [] : ["quantidade", "unidade"]),
+    "descricao",
+    ...(initial ? ["motivo"] : []),
+  ];
+  const prontos = obrigatorios.filter((k) => !locais[k]).length;
+  const erro = (k: string) =>
+    fields[k]?.join(" ") || (tocados.foi(k) ? locais[k] : undefined);
+  const ok = (k: string) => !locais[k] && !fields[k];
   async function salvar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setBusy(true);
+    tocados.tocarTodos();
     setError("");
+    if (Object.keys(locais).length) {
+      setError("Revise os campos destacados antes de salvar.");
+      return;
+    }
+    setBusy(true);
     setFields({});
     const payload = {
       ...form,
@@ -1190,175 +1248,330 @@ function RegistroForm({
       setBusy(false);
     }
   }
-  const input = (
+  function voltar() {
+    if (!dirty || window.confirm("Descartar as alterações ainda não salvas?"))
+      onCancel();
+  }
+  const campoTexto = (
     key: string,
-    type = "text",
-    required = true,
-    maxLength = 160,
+    rotulo: string,
+    obrigatorio: boolean,
+    extra: { max?: number; type?: string; dica?: string; largo?: boolean } = {},
   ) => (
-    <label key={key}>
-      {labels[key]}
-      {required ? " *" : ""}
-      <input
-        type={type}
-        value={form[key]}
-        required={required}
-        maxLength={maxLength}
-        max={type === "date" ? dia() : undefined}
-        min={type === "number" ? "0.01" : undefined}
-        step={type === "number" ? "0.01" : undefined}
-        aria-invalid={!!fields[key]}
-        onChange={(e) => mudar(key, e.target.value)}
-      />
-      {fields[key] && (
-        <span className="field-error">{fields[key].join(" ")}</span>
-      )}
-    </label>
-  );
-  return (
-    <form
-      className="card form-card"
-      data-dirty={dirty}
-      onSubmit={(e) => void salvar(e)}
+    <ValidatedFormField
+      rotulo={rotulo}
+      obrigatorio={obrigatorio}
+      dica={extra.dica}
+      largo={extra.largo}
+      erro={erro(key)}
+      ok={obrigatorio && ok(key)}
     >
-      <h2>
-        {initial ? "Corrigir ou cancelar" : "Registrar"}{" "}
-        {atendimento ? "atendimento" : "doação"}
-      </h2>
-      <p>
-        {atendimento
-          ? "O aluno e o sigilo são preservados após o primeiro registro. Somente o autor pode corrigir ou cancelar."
-          : "Informe valor em reais para dinheiro ou quantidade e unidade para bens."}
-      </p>
-      {error && (
-        <div role="alert" className="error">
-          {error}
-          {fields.__all__ && <p>{fields.__all__.join(" ")}</p>}
-        </div>
+      {(p) => (
+        <input
+          {...p}
+          onBlur={() => tocados.tocar(key)}
+          type={extra.type || "text"}
+          value={form[key]}
+          maxLength={extra.max ?? 160}
+          max={extra.type === "date" ? dia() : undefined}
+          min={extra.type === "number" ? "0.01" : undefined}
+          step={extra.type === "number" ? "0.01" : undefined}
+          inputMode={extra.type === "number" ? "decimal" : undefined}
+          onChange={(e) => mudar(key, e.target.value)}
+        />
       )}
-      <fieldset disabled={busy}>
-        <div className="form-grid">
-          {atendimento &&
-            (initial || aluno ? (
-              <div className="full">
-                <strong>Aluno: {initial?.aluno_nome || aluno?.nome}</strong>
-              </div>
-            ) : (
-              <>
-                <label>
-                  Buscar aluno
-                  <input
-                    value={search}
-                    maxLength={160}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Aluno *
-                  <select
-                    value={form.aluno}
-                    aria-label="Aluno *"
-                    required
-                    onChange={(e) => mudar("aluno", e.target.value)}
-                  >
-                    <option value="">Selecione o aluno</option>
-                    {form.aluno &&
-                      !options?.items.some((a) => a.id === form.aluno) && (
-                        <option value={form.aluno}>Aluno selecionado</option>
-                      )}
-                    {options?.items.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.nome} · {data(a.data_nascimento)}
-                      </option>
-                    ))}
-                  </select>
-                  <small>
-                    Exibindo até 20 resultados. Refine a busca pelo nome.
-                  </small>
-                  {fields.aluno && (
-                    <span className="field-error">
-                      {fields.aluno.join(" ")}
-                    </span>
-                  )}
-                </label>
-              </>
-            ))}
-          {input("data", "date")}
-          <label>
-            Tipo *
-            <select
-              value={form.tipo}
-              onChange={(e) => mudar("tipo", e.target.value)}
-            >
-              {Object.entries(atendimento ? tiposAtendimento : tiposDoacao).map(
-                ([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
+    </ValidatedFormField>
+  );
+  const nomeAluno = initial?.aluno_nome || aluno?.nome;
+  const titulo = initial
+    ? atendimento
+      ? "Corrigir ou cancelar atendimento"
+      : "Corrigir ou cancelar doação"
+    : atendimento
+      ? "Registrar atendimento"
+      : "Registrar doação";
+  return (
+    <div className="form-page">
+      <FormProgressHeader
+        voltar="Voltar"
+        onVoltar={voltar}
+        busy={busy}
+        icone={atendimento ? "heart" : "gift"}
+        tom={atendimento ? "tone-violet" : "tone-amber"}
+        eyebrow={
+          atendimento
+            ? "Acompanhamento socioassistencial"
+            : "Apoio institucional"
+        }
+        titulo={titulo}
+        descricao={
+          atendimento
+            ? "O aluno e o sigilo ficam fixos após o primeiro registro. Somente o autor pode corrigir ou cancelar."
+            : "Dinheiro é registrado em reais; bens, por quantidade e unidade."
+        }
+        preenchidos={prontos}
+        total={obrigatorios.length}
+      />
+      <form
+        className="form-stack"
+        data-dirty={dirty}
+        onSubmit={(e) => void salvar(e)}
+        noValidate
+      >
+        {error && (
+          <div role="alert" className="error">
+            {error}
+            {fields.__all__ && <p>{fields.__all__.join(" ")}</p>}
+          </div>
+        )}
+        <fieldset disabled={busy}>
           {atendimento ? (
             <>
-              <label>
-                Sigilo *
-                <select
+              <FormSection
+                icone="user"
+                titulo="Aluno acompanhado"
+                descricao="Quem recebeu o atendimento."
+              >
+                {nomeAluno ? (
+                  <div className="person picked full">
+                    <span
+                      className={`avatar avatar-${tomAvatar(nomeAluno)}`}
+                      aria-hidden="true"
+                    >
+                      {iniciais(nomeAluno)}
+                    </span>
+                    <div>
+                      <span className="cell-main">Aluno: {nomeAluno}</span>
+                      <small className="cell-sub">Fixo neste registro</small>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ValidatedFormField
+                      rotulo="Buscar aluno"
+                      dica="Digite parte do nome para filtrar a lista."
+                    >
+                      {(p) => (
+                        <div className="input-icon">
+                          <Icon name="search" />
+                          <input
+                            {...p}
+                            type="search"
+                            value={search}
+                            maxLength={160}
+                            placeholder="Nome do aluno"
+                            onChange={(e) => setSearch(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </ValidatedFormField>
+                    <ValidatedFormField
+                      rotulo="Aluno"
+                      obrigatorio
+                      dica="Exibindo até 20 resultados."
+                      erro={erro("aluno")}
+                      ok={ok("aluno")}
+                    >
+                      {(p) => (
+                        <select
+                          {...p}
+                          aria-label="Aluno *"
+                          value={form.aluno}
+                          onBlur={() => tocados.tocar("aluno")}
+                          onChange={(e) => mudar("aluno", e.target.value)}
+                        >
+                          <option value="">Selecione o aluno</option>
+                          {form.aluno &&
+                            !options?.items.some(
+                              (a) => a.id === form.aluno,
+                            ) && (
+                              <option value={form.aluno}>
+                                Aluno selecionado
+                              </option>
+                            )}
+                          {options?.items.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.nome} · {data(a.data_nascimento)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </ValidatedFormField>
+                  </>
+                )}
+              </FormSection>
+              <FormSection
+                icone="calendar"
+                titulo="Sobre o atendimento"
+                descricao="Quando aconteceu e qual foi a modalidade."
+              >
+                {campoTexto("data", "Data do atendimento", true, {
+                  type: "date",
+                })}
+                <Segmentado
+                  rotulo="Modalidade"
+                  obrigatorio
+                  largo
+                  opcoes={Object.entries(tiposAtendimento).map(([v, l]) => ({
+                    valor: v,
+                    rotulo: l,
+                    icone: iconesAtendimento[v],
+                  }))}
+                  valor={form.tipo}
+                  onChange={(v) => mudar("tipo", v)}
+                />
+              </FormSection>
+              <FormSection
+                icone="lock"
+                titulo="Nível de sigilo"
+                descricao={
+                  initial
+                    ? "O sigilo é preservado após o primeiro registro."
+                    : "Escolha quem poderá ler este relato. Não poderá ser alterado depois."
+                }
+              >
+                <OpcoesCartao
+                  rotulo="Sigilo"
                   disabled={!!initial}
-                  value={form.nivel}
-                  aria-label="Sigilo *"
-                  onChange={(e) => mudar("nivel", e.target.value)}
-                >
-                  {Object.entries(niveis)
+                  opcoes={(Object.keys(niveis) as (keyof typeof niveis)[])
                     .filter(
-                      ([v]) =>
+                      (v) =>
                         v !== "restrito" ||
                         user.pode_ler_restritos ||
                         initial?.nivel === "restrito",
                     )
-                    .map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                </select>
-                <small>
+                    .map((v) => ({
+                      valor: v,
+                      rotulo: niveis[v],
+                      descricao: sigiloExplica[v],
+                      icone: v === "publico" ? "users" : "lock",
+                      tom: sigiloTom[v],
+                    }))}
+                  valor={form.nivel}
+                  onChange={(v) => mudar("nivel", v)}
+                />
+                <p className="form-summary full">
+                  <Icon name="info" />
                   “Equipe autorizada” nunca significa acesso público pela
                   internet.
-                </small>
-              </label>
-              {input("encaminhamento", "text", false, 500)}
+                </p>
+              </FormSection>
+              <FormSection
+                icone="book"
+                titulo="Relato do atendimento"
+                descricao="Escreva de forma objetiva e respeitosa: o que foi conversado e combinado."
+              >
+                <ValidatedFormField
+                  rotulo="Descrição"
+                  obrigatorio
+                  largo
+                  contador={[form.descricao.length, 10000]}
+                  erro={erro("descricao")}
+                  ok={ok("descricao")}
+                >
+                  {(p) => (
+                    <textarea
+                      {...p}
+                      aria-label="Descrição *"
+                      rows={7}
+                      maxLength={10000}
+                      value={form.descricao}
+                      onBlur={() => tocados.tocar("descricao")}
+                      onChange={(e) => mudar("descricao", e.target.value)}
+                    />
+                  )}
+                </ValidatedFormField>
+                {campoTexto("encaminhamento", "Encaminhamento", false, {
+                  max: 500,
+                  largo: true,
+                  dica: "Opcional. Ex.: CRAS, UBS, Conselho Tutelar.",
+                })}
+              </FormSection>
             </>
           ) : (
             <>
-              {input("doador", "text", false)}
-              {form.tipo === "dinheiro" ? (
-                input("valor", "number")
-              ) : (
-                <>
-                  {input("quantidade", "number")}
-                  {input("unidade", "text", true, 40)}
-                </>
-              )}
+              <FormSection
+                icone="gift"
+                titulo="Doação recebida"
+                descricao="Quando chegou, o que é e quem doou."
+              >
+                {campoTexto("data", "Data", true, { type: "date" })}
+                {campoTexto("doador", "Doador", false, {
+                  dica: "Opcional. Pessoa ou empresa; deixe vazio se anônimo.",
+                })}
+                <Segmentado
+                  rotulo="Tipo de doação"
+                  obrigatorio
+                  largo
+                  opcoes={Object.entries(tiposDoacao).map(([v, l]) => ({
+                    valor: v,
+                    rotulo: l,
+                    icone: iconesDoacao[v],
+                  }))}
+                  valor={form.tipo}
+                  onChange={(v) => mudar("tipo", v)}
+                />
+              </FormSection>
+              <FormSection
+                icone={dinheiro ? "wallet" : "chart"}
+                titulo={dinheiro ? "Valor" : "Quantidade"}
+                descricao={
+                  dinheiro
+                    ? "Valor recebido em reais."
+                    : "Quanto foi recebido e em que unidade."
+                }
+              >
+                {dinheiro ? (
+                  campoTexto("valor", "Valor (R$)", true, { type: "number" })
+                ) : (
+                  <>
+                    {campoTexto("quantidade", "Quantidade", true, {
+                      type: "number",
+                    })}
+                    {campoTexto("unidade", "Unidade", true, {
+                      max: 40,
+                      dica: "kg, unidades, caixas, pacotes…",
+                    })}
+                  </>
+                )}
+              </FormSection>
+              <FormSection
+                icone="book"
+                titulo="Descrição"
+                descricao="Detalhes que ajudam na prestação de contas."
+              >
+                <ValidatedFormField
+                  rotulo="Descrição"
+                  obrigatorio
+                  largo
+                  contador={[form.descricao.length, 1000]}
+                  erro={erro("descricao")}
+                  ok={ok("descricao")}
+                >
+                  {(p) => (
+                    <textarea
+                      {...p}
+                      aria-label="Descrição *"
+                      rows={4}
+                      maxLength={1000}
+                      value={form.descricao}
+                      onBlur={() => tocados.tocar("descricao")}
+                      onChange={(e) => mudar("descricao", e.target.value)}
+                    />
+                  )}
+                </ValidatedFormField>
+              </FormSection>
             </>
           )}
-          <label className="full">
-            Descrição *
-            <textarea
-              required
-              maxLength={atendimento ? 10000 : 1000}
-              value={form.descricao}
-              aria-label="Descrição *"
-              aria-invalid={!!fields.descricao}
-              onChange={(e) => mudar("descricao", e.target.value)}
-            />
-            {fields.descricao && (
-              <span className="field-error">{fields.descricao.join(" ")}</span>
-            )}
-          </label>
           {initial && (
-            <>
-              <label className="checkbox full">
+            <FormSection
+              icone="pencil"
+              titulo="Correção ou cancelamento"
+              descricao="A versão anterior fica preservada na trilha de auditoria."
+            >
+              <label
+                className={`checkbox full danger-check${cancelado ? " on" : ""}`}
+              >
                 <input
                   type="checkbox"
                   checked={cancelado}
@@ -1369,46 +1582,53 @@ function RegistroForm({
                 />
                 Cancelar registro e impedir novas alterações
               </label>
-              <label className="full">
-                Motivo da alteração *
-                <textarea
-                  required
-                  maxLength={300}
-                  value={motivo}
-                  aria-label="Motivo da alteração *"
-                  onChange={(e) => {
-                    setMotivo(e.target.value);
-                    setDirty(true);
-                  }}
-                />
-              </label>
-            </>
+              <ValidatedFormField
+                rotulo="Motivo da alteração"
+                obrigatorio
+                largo
+                erro={erro("motivo")}
+                ok={ok("motivo")}
+              >
+                {(p) => (
+                  <textarea
+                    {...p}
+                    aria-label="Motivo da alteração *"
+                    rows={2}
+                    maxLength={300}
+                    value={motivo}
+                    onBlur={() => tocados.tocar("motivo")}
+                    onChange={(e) => {
+                      setMotivo(e.target.value);
+                      setDirty(true);
+                    }}
+                  />
+                )}
+              </ValidatedFormField>
+            </FormSection>
           )}
-        </div>
-      </fieldset>
-      <div className="form-actions">
-        <button
-          type="button"
-          className="secondary"
-          disabled={busy}
-          onClick={() => {
-            if (
-              !dirty ||
-              window.confirm("Descartar as alterações ainda não salvas?")
-            )
-              onCancel();
-          }}
-        >
-          Voltar
-        </button>
-        <button disabled={busy}>
-          {busy
-            ? "Salvando…"
-            : cancelado
-              ? "Confirmar cancelamento"
-              : "Salvar registro"}
-        </button>
-      </div>
-    </form>
+        </fieldset>
+        <FormFooter faltam={obrigatorios.length - prontos}>
+          <button
+            type="button"
+            className="btn-outline"
+            disabled={busy}
+            onClick={voltar}
+          >
+            Voltar
+          </button>
+          <button
+            className={cancelado ? "btn-danger" : "btn-primary"}
+            disabled={busy}
+          >
+            <Icon name={cancelado ? "close" : "save"} />
+            {busy
+              ? "Salvando…"
+              : cancelado
+                ? "Confirmar cancelamento"
+                : "Salvar registro"}
+          </button>
+        </FormFooter>
+      </form>
+    </div>
   );
 }
