@@ -18,7 +18,6 @@ export type User = {
   pode_ver_frequencia: boolean;
   pode_criar_chamada: boolean;
   pode_corrigir_chamada: boolean;
-  pode_gerir_educadores: boolean;
 };
 export type Status = "lista_espera" | "ativo" | "inativo";
 export type Cadastro = {

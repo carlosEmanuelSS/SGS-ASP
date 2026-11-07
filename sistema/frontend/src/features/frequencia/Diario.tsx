@@ -7,7 +7,6 @@ import type { Pagina } from "../oficinas/types";
 import { dias, iconeOficina, rotuloTurma } from "../oficinas/types";
 import { hoje } from "./types";
 import type { Chamada, Registro, Resumo, Turma } from "./types";
-import { AcessosTurma } from "./AcessosTurma";
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
@@ -573,7 +572,6 @@ export function Diario({
           </>
         )}
       </section>
-      {user.pode_gerir_educadores && <AcessosTurma id={turma.id} />}
     </div>
   );
 }

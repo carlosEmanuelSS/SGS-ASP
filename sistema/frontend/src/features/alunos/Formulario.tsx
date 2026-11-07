@@ -11,6 +11,8 @@ import {
   hoje,
   mascaraCpf,
   mascaraTelefone,
+  moedaDigitada,
+  moedaExibida,
   Segmentado,
   soDigitos,
   useTocados,
@@ -327,13 +329,12 @@ export function Formulario({
                 <input
                   {...p}
                   {...blur("renda_familiar")}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  value={data.renda_familiar || ""}
-                  onChange={(e) => mudar("renda_familiar", e.target.value)}
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  value={moedaExibida(data.renda_familiar)}
+                  onChange={(e) =>
+                    mudar("renda_familiar", moedaDigitada(e.target.value, 10))
+                  }
                 />
               )}
             </ValidatedFormField>

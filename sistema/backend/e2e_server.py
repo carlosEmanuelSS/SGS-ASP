@@ -20,7 +20,6 @@ with TemporaryDirectory(prefix='sgs-e2e-') as directory:
     from django.contrib.auth.models import Group, User
     from alunos.models import Aluno
     from oficinas.models import Oficina, Matricula
-    from frequencia.models import ResponsavelTurma
     call_command('migrate', verbosity=0)
     call_command('configurar_perfis', verbosity=0)
     for name, group in [('tecnico_e2e', 'Equipe técnica'), ('outro_e2e', 'Equipe técnica'), ('educador_e2e', 'Educador')]:
@@ -29,8 +28,9 @@ with TemporaryDirectory(prefix='sgs-e2e-') as directory:
     User.objects.create_superuser('admin_e2e', password='Somente-Testes-E2E-846!')
     aluno = Aluno.objects.create(nome='Aluno E2E', data_nascimento='2010-01-01', responsavel='Responsável fictício',
         parentesco='Mãe', telefone='61999999999', status='ativo')
+    educador = User.objects.get(username='educador_e2e')
     oficina = Oficina.objects.create(nome='Oficina E2E', turma='A', tipo='Cultura', educador='Educador E2E',
+                                     educador_usuario=educador,
         unidade='Unidade de teste', dias_semana=[0,1,2,3,4], inicio='08:00', fim='09:00', limite_vagas=10)
     Matricula.objects.create(aluno=aluno, oficina=oficina)
-    ResponsavelTurma.objects.create(oficina=oficina, usuario=User.objects.get(username='educador_e2e'))
     call_command('runserver', '127.0.0.1:8002', use_reloader=False)

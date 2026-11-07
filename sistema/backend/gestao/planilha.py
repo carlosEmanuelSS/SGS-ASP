@@ -5,7 +5,7 @@ from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from .models import Atendimento
+from .models import Atendimento, Doacao
 
 VERDE = '1E8E3E'
 VERDE_CLARO = 'E8F5EC'
@@ -14,6 +14,11 @@ BORDA = Border(*(Side(style='thin', color='CBD5E1'),) * 4)
 COLUNAS = 7
 LARGURAS = [34, 24, 18, 24, 14, 16, 16]
 TIPOS = dict(Atendimento.TIPOS)
+TIPOS_DOACAO = dict(Doacao.TIPOS)
+
+
+def quantidade_doacao(d):
+    return f"{format(d.quantidade.normalize(), 'f').replace('.', ',')} {d.unidade}".strip()
 
 
 def br(d):
@@ -23,8 +28,9 @@ def br(d):
 class Folha:
     """Escreve blocos (título + tabela) um abaixo do outro, com estilo consistente."""
 
-    def __init__(self, ws):
+    def __init__(self, ws, colunas=COLUNAS):
         self.ws = ws
+        self.colunas = colunas
         self.linha = 1
 
     def celula(self, col, valor, **estilo):
@@ -38,7 +44,7 @@ class Folha:
 
     def mesclar(self, valor, **estilo):
         self.celula(1, valor, **estilo)
-        self.ws.merge_cells(start_row=self.linha, start_column=1, end_row=self.linha, end_column=COLUNAS)
+        self.ws.merge_cells(start_row=self.linha, start_column=1, end_row=self.linha, end_column=self.colunas)
         self.linha += 1
 
     def secao(self, titulo, cabecalho, linhas, formatos=None, vazio='Sem dados no período.'):
@@ -66,7 +72,7 @@ def pct(parte, total):
     return parte / total if total else None
 
 
-def gerar(data):
+def gerar(data, doacoes=None):
     wb = Workbook()
     ws = wb.active
     ws.title = 'Relatório'
@@ -111,6 +117,13 @@ def gerar(data):
         f.secao('Doações no período', ['Indicador', 'Valor'], [
             ['Doações registradas', data['doacoes']['total']],
             ['Total recebido em dinheiro', (Decimal(data['doacoes']['valor']), '"R$" #,##0.00')]])
+        lista = list(doacoes or [])
+        f.secao(f'Doações recebidas no período ({len(lista)})',
+                ['Data', 'Doador', 'Tipo', 'Valor (R$)', 'Quantidade'],
+                [[(d.data, 'DD/MM/YYYY'), d.doador or 'Não informado', TIPOS_DOACAO.get(d.tipo, d.tipo),
+                  (d.valor, '"R$" #,##0.00') if d.valor is not None else '',
+                  quantidade_doacao(d) if d.quantidade is not None else ''] for d in lista],
+                vazio='Nenhuma doação no período.')
 
     f.linha += 1
     f.mesclar('Não inclui relatos de atendimento, nomes de alunos, documentos ou dados familiares.',

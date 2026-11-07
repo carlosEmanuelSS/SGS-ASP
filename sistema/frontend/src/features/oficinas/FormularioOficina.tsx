@@ -4,6 +4,7 @@ import { api, ApiError, mensagem } from "../../api";
 import { Icon } from "../../Icon";
 import {
   Alternancias,
+  Autocomplete,
   FormFooter,
   FormProgressHeader,
   FormSection,
@@ -11,6 +12,7 @@ import {
   useTocados,
   ValidatedFormField,
 } from "../../forms";
+import type { Opcao } from "../../forms";
 import { dias } from "./types";
 import type { DadosOficina, Oficina } from "./types";
 
@@ -18,7 +20,7 @@ const vazio: DadosOficina = {
   nome: "",
   turma: "",
   tipo: "",
-  educador: "",
+  educador_usuario: null,
   unidade: "",
   dias_semana: [],
   inicio: "",
@@ -29,7 +31,7 @@ const vazio: DadosOficina = {
 };
 type Chave = keyof DadosOficina;
 const textos: Record<
-  "nome" | "turma" | "tipo" | "educador" | "unidade",
+  "nome" | "turma" | "tipo" | "unidade",
   { rotulo: string; max: number; exemplo: string }
 > = {
   nome: { rotulo: "Nome da oficina", max: 120, exemplo: "Ex.: Robótica" },
@@ -38,11 +40,6 @@ const textos: Record<
     rotulo: "Área ou tipo de atividade",
     max: 60,
     exemplo: "Ex.: Tecnologia",
-  },
-  educador: {
-    rotulo: "Educador responsável",
-    max: 160,
-    exemplo: "Nome completo",
   },
   unidade: {
     rotulo: "Unidade ou local",
@@ -54,6 +51,8 @@ function validar(d: DadosOficina): Partial<Record<Chave, string>> {
   const e: Partial<Record<Chave, string>> = {};
   for (const k of Object.keys(textos) as (keyof typeof textos)[])
     if (!d[k].trim()) e[k] = `Informe ${textos[k].rotulo.toLowerCase()}.`;
+  if (!d.educador_usuario)
+    e.educador_usuario = "Selecione um educador da lista.";
   if (!d.dias_semana.length) e.dias_semana = "Selecione pelo menos um dia.";
   if (!d.inicio) e.inicio = "Informe o horário de início.";
   if (!d.fim) e.fim = "Informe o horário de término.";
@@ -67,7 +66,7 @@ const obrigatorios: Chave[] = [
   "nome",
   "turma",
   "tipo",
-  "educador",
+  "educador_usuario",
   "unidade",
   "dias_semana",
   "inicio",
@@ -75,6 +74,8 @@ const obrigatorios: Chave[] = [
   "limite_vagas",
 ];
 const curto = (i: number) => dias[i].slice(0, 3);
+const semAcento = (v: string) =>
+  v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 function duracao(inicio: string, fim: string) {
   const [h1, m1] = inicio.split(":").map(Number);
   const [h2, m2] = fim.split(":").map(Number);
@@ -103,11 +104,35 @@ export function FormularioOficina({
       : { ...vazio },
   );
   const [motivo, setMotivo] = useState("");
+  const [educadores, setEducadores] = useState<Opcao[] | null>(null);
+  const [buscaEducador, setBuscaEducador] = useState(initial?.educador ?? "");
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fields, setFields] = useState<Record<string, string[]>>({});
   const tocados = useTocados();
+  useEffect(() => {
+    const controller = new AbortController();
+    void api<{ items: { id: number; nome: string; usuario: string }[] }>(
+      "oficinas/educadores/",
+      "GET",
+      undefined,
+      controller.signal,
+    )
+      .then((r) =>
+        setEducadores(
+          r.items.map((e) => ({
+            id: String(e.id),
+            rotulo: e.nome,
+            detalhe: e.usuario,
+          })),
+        ),
+      )
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(mensagem(e));
+      });
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     const prevent = (event: BeforeUnloadEvent) => {
       if (dirty) {
@@ -248,8 +273,37 @@ export function FormularioOficina({
             titulo="Responsável e local"
             descricao="Quem conduz a turma e onde acontecem os encontros."
           >
-            {texto("educador")}
-            {texto("unidade")}
+            <Autocomplete
+              rotulo="Educador responsável"
+              obrigatorio
+              placeholder="Digite o nome do professor"
+              dica="Somente educadores cadastrados. O escolhido faz a chamada desta turma."
+              vazio="Nenhum educador cadastrado com esse nome."
+              erro={erro("educador_usuario")}
+              opcoes={
+                educadores &&
+                educadores.filter((e) =>
+                  semAcento(e.rotulo + " " + e.detalhe).includes(
+                    semAcento(
+                      // Com alguém escolhido, a lista mostra todos ao abrir.
+                      data.educador_usuario ? "" : buscaEducador.trim(),
+                    ),
+                  ),
+                )
+              }
+              selecionado={
+                educadores?.find(
+                  (e) => e.id === String(data.educador_usuario),
+                ) ?? null
+              }
+              busca={buscaEducador}
+              onBusca={setBuscaEducador}
+              onBlur={() => tocados.tocar("educador_usuario")}
+              onSelecionar={(o) =>
+                change("educador_usuario", o ? Number(o.id) : null)
+              }
+            />
+            {texto("unidade", true)}
           </FormSection>
           <FormSection
             icone="calendar"

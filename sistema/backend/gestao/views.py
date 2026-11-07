@@ -3,8 +3,8 @@ from decimal import Decimal
 from uuid import UUID
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Q, Sum
-from django.http import JsonResponse
+from django.db.models import Count, F, Max, Q, Sum
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from alunos.views import endpoint
 from .forms import AtendimentoForm, DoacaoForm
@@ -57,6 +57,25 @@ def periodo(request):
     return start, end
 
 
+def filtrar_doacoes(request, records):
+    """Busca e aba da tela de Doações; a lista e a exportação usam o mesmo filtro."""
+    query = request.GET.get('q', '').strip()[:160]
+    records = records.select_related('autor').filter(Q(doador__icontains=query) | Q(descricao__icontains=query))
+    categoria = request.GET.get('categoria', '')
+    if categoria not in ['', 'dinheiro', 'bens']:
+        raise ValueError()
+    if categoria:
+        records = records.filter(tipo='dinheiro') if categoria == 'dinheiro' else records.exclude(tipo='dinheiro')
+    return records
+
+
+def filtrar_status(request, records):
+    status = request.GET.get('status', '')
+    if status not in ['', 'ativo', 'cancelado']:
+        raise ValueError()
+    return records.filter(cancelado=status == 'cancelado') if status else records
+
+
 def listar(request, records):
     query = request.GET.get('q', '').strip()[:160]
     if records.model is Atendimento:
@@ -70,22 +89,25 @@ def listar(request, records):
         if tipo:
             records = records.filter(tipo=tipo)
     else:
-        records = records.select_related('autor').filter(Q(doador__icontains=query) | Q(descricao__icontains=query))
-        categoria = request.GET.get('categoria', '')
-        if categoria not in ['', 'dinheiro', 'bens']:
-            raise ValueError()
-        if categoria:
-            records = records.filter(tipo='dinheiro') if categoria == 'dinheiro' else records.exclude(tipo='dinheiro')
-    status = request.GET.get('status', '')
-    if status not in ['', 'ativo', 'cancelado']:
-        raise ValueError()
-    if status:
-        records = records.filter(cancelado=status == 'cancelado')
+        records = filtrar_doacoes(request, records)
+    records = filtrar_status(request, records)
     if request.GET.get('inicio') or request.GET.get('fim'):
         records = records.filter(data__range=periodo(request))
-    page = Paginator(records, 20).get_page(request.GET.get('page', '1'))
-    data = {'items': [item(obj, request.user) for obj in page],
-        'total': page.paginator.count, 'page': page.number, 'pages': page.paginator.num_pages}
+    if records.model is Atendimento and request.GET.get('agrupar') == 'aluno':
+        # Uma linha por aluno (prontuário); só conta o que o usuário pode ver.
+        grupos = records.values('aluno_id', 'aluno__nome').annotate(
+            total=Count('id'), ultimo=Max('data')).order_by('-ultimo', 'aluno__nome', 'aluno_id')
+        page = Paginator(grupos, 20).get_page(request.GET.get('page', '1'))
+        items = []
+        for g in page:
+            ultimo = records.filter(aluno_id=g['aluno_id']).order_by('-data', '-criado_em').first()
+            items.append({'aluno': str(g['aluno_id']), 'aluno_nome': g['aluno__nome'], 'total': g['total'],
+                          'ultimo_data': g['ultimo'], 'ultimo_tipo': ultimo.tipo})
+        data = {'items': items, 'total': page.paginator.count, 'page': page.number, 'pages': page.paginator.num_pages}
+    else:
+        page = Paginator(records, 20).get_page(request.GET.get('page', '1'))
+        data = {'items': [item(obj, request.user) for obj in page],
+            'total': page.paginator.count, 'page': page.number, 'pages': page.paginator.num_pages}
     if records.model is Doacao:
         data['resumo'] = resumo_doacoes()
     elif not request.GET.get('aluno'):
@@ -186,6 +208,28 @@ def doacoes(request):
         return listar(request, Doacao.objects.all())
     with transaction.atomic():
         return gravar(request, DoacaoForm)
+
+
+@endpoint(['GET'], 'gestao.view_doacao')
+def exportar_doacoes(request):
+    # Mesmos filtros da tela (aba, busca, situação), sem paginação.
+    from .relatorio_doacoes import gerar_pdf, gerar_xlsx
+    formato = request.GET.get('formato', '')
+    if formato not in ('xlsx', 'pdf'):
+        raise ValueError()
+    records = filtrar_status(request, filtrar_doacoes(request, Doacao.objects.all())).order_by('-data', '-criado_em')
+    filtros = [{'dinheiro': 'Dinheiro', 'bens': 'Itens e materiais'}.get(request.GET.get('categoria', ''), 'Todas as doações'),
+               {'ativo': 'Ativas', 'cancelado': 'Canceladas'}.get(request.GET.get('status', ''), 'Todas as situações')]
+    if request.GET.get('q', '').strip():
+        filtros.append(f"Busca: \"{request.GET['q'].strip()[:160]}\"")
+    hoje = timezone.localdate().strftime('%d-%m-%Y')
+    if formato == 'xlsx':
+        response = HttpResponse(gerar_xlsx(records, ' · '.join(filtros)),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    else:
+        response = HttpResponse(gerar_pdf(records, ' · '.join(filtros)), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="doacoes-{hoje}.{formato}"'
+    return response
 
 
 @endpoint(['GET', 'PUT'], {'GET': 'gestao.view_doacao', 'PUT': 'gestao.change_doacao'})

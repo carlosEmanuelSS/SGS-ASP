@@ -228,6 +228,19 @@ class GestaoTests(TestCase):
         self.assertIn('Frequência por turma', valores)
         presenca = next(row for row in ws.iter_rows(values_only=True) if row[0] == 'Presença')
         self.assertEqual(presenca[1], 0)
+        # A lista das doações do período entra na planilha e no PDF; cancelada fica de fora.
+        Doacao.objects.create(autor=self.tecnico, data=timezone.localdate(), tipo='dinheiro', doador='Padaria Central',
+                              descricao='Ajuda', valor=Decimal('80'))
+        Doacao.objects.create(autor=self.tecnico, data=timezone.localdate(), tipo='roupas', doador='Doação cancelada',
+                              descricao='Erro', quantidade=Decimal('2'), unidade='caixas', cancelado=True)
+        linhas = list(load_workbook(BytesIO(self.client.get('/api/relatorios/'+qs+'&formato=xlsx').content)).active.iter_rows(values_only=True))
+        cab = next(i for i, l in enumerate(linhas) if l[:2] == ('Data', 'Doador'))
+        self.assertEqual(linhas[cab + 1][1:4], ('Padaria Central', 'Dinheiro', Decimal('80')))
+        self.assertNotIn('Doação cancelada', [l[1] for l in linhas])
+        pdf = self.client.get('/api/relatorios/'+qs+'&formato=pdf')
+        self.assertEqual((pdf.status_code, pdf['Content-Type']), (200, 'application/pdf'))
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        self.assertIn('.pdf', pdf['Content-Disposition'])
         for query in ['?inicio=2020-01-01&fim=2025-01-01', '?inicio=abc', '?formato=html', '?formato=csv', '?oficina=abc']:
             self.assertEqual(self.client.get('/api/relatorios/'+query).status_code, 400)
 
@@ -240,6 +253,69 @@ class GestaoTests(TestCase):
         self.assertEqual(self.client.get('/api/atendimentos/?aluno='+str(self.aluno.pk)).json()['total'], 21)
         self.entrar(self.outro)
         self.assertEqual(self.client.get('/api/atendimentos/?aluno='+str(self.aluno.pk)).json()['total'], 0)
+
+    def test_lista_agrupada_por_aluno_respeita_sigilo(self):
+        outro_aluno = Aluno.objects.create(nome='Outra aluna', data_nascimento='2011-02-02',
+            responsavel='Responsável', parentesco='Pai', telefone='61988888888', status='ativo')
+        hoje = timezone.localdate()
+        self.post(data=str(hoje - timedelta(days=5)), tipo='social')
+        self.post(data=str(hoje - timedelta(days=1)), tipo='psicologico')
+        self.post(data=str(hoje - timedelta(days=3)), tipo='visita_domiciliar', nivel='publico')
+        self.post(aluno=str(outro_aluno.pk), data=str(hoje - timedelta(days=2)), tipo='social', nivel='publico')
+        r = self.client.get('/api/atendimentos/?agrupar=aluno').json()
+        self.assertEqual(r['total'], 2)
+        self.assertEqual(r['items'][0], {'aluno': str(self.aluno.pk), 'aluno_nome': self.aluno.nome, 'total': 3,
+                                         'ultimo_data': str(hoje - timedelta(days=1)), 'ultimo_tipo': 'psicologico'})
+        self.assertEqual(r['items'][1]['total'], 1)
+        self.assertNotIn('descricao', r['items'][0])
+        filtrado = self.client.get('/api/atendimentos/?agrupar=aluno&tipo=visita_domiciliar').json()
+        self.assertEqual([i['aluno'] for i in filtrado['items']], [str(self.aluno.pk)])
+        # Outro técnico só enxerga os públicos: os confidenciais não entram na contagem nem no "último".
+        self.entrar(self.outro)
+        r = self.client.get('/api/atendimentos/?agrupar=aluno').json()
+        meu = next(i for i in r['items'] if i['aluno'] == str(self.aluno.pk))
+        self.assertEqual((meu['total'], meu['ultimo_tipo']), (1, 'visita_domiciliar'))
+
+    def test_exportar_doacoes_csv_e_pdf(self):
+        hoje = timezone.localdate()
+        for i in range(23):
+            Doacao.objects.create(autor=self.tecnico, data=hoje, tipo='dinheiro', doador=f'Doador {i}',
+                                  descricao='Mensal', valor=Decimal('1234.50'))
+        Doacao.objects.create(autor=self.tecnico, data=hoje, tipo='alimentos', doador='=HYPERLINK("x")',
+                              descricao='Cestas “básicas” — 🙂', quantidade=Decimal('10.5'), unidade='kg')
+        Doacao.objects.create(autor=self.tecnico, data=hoje, tipo='dinheiro', doador='Cancelada',
+                              descricao='Duplicada', valor=Decimal('50'), cancelado=True)
+        from io import BytesIO
+        from openpyxl import load_workbook
+        def planilha(qs=''):
+            r = self.client.get('/api/doacoes/exportar/?formato=xlsx' + qs)
+            self.assertEqual(r.status_code, 200)
+            self.assertIn('.xlsx', r['Content-Disposition'])
+            return load_workbook(BytesIO(r.content)).active
+        ws = planilha()
+        linhas = list(ws.iter_rows(values_only=True))
+        cab = next(i for i, l in enumerate(linhas) if l[0] == 'Data' and l[1] == 'Doador')
+        lista = [l for l in linhas[cab + 1:] if l[0] is not None and l[1] is not None]
+        self.assertEqual(len(lista), 25)  # todas, sem paginação
+        self.assertEqual(next(l for l in linhas if l[0] == 'Total em dinheiro')[1], Decimal('28393.50'))
+        valor = next(c for row in ws.iter_rows() for c in row if c.value == Decimal('1234.50'))
+        self.assertEqual(valor.number_format, '"R$" #,##0.00')
+        # Doador escrito como fórmula fica como texto; datas são datas de verdade.
+        formula = next(c for row in ws.iter_rows() for c in row if c.value == '=HYPERLINK("x")')
+        self.assertEqual(formula.data_type, 's')
+        self.assertEqual(lista[0][0].date(), hoje)
+        self.assertIn(('Cancelada', 'Duplicada'), [(l[1], l[6]) for l in lista])
+        # Mesmos filtros da tela.
+        bens = [l for l in planilha('&categoria=bens').iter_rows(values_only=True) if l[2] == 'Alimentos']
+        self.assertEqual(len(bens), 1)
+        pdf = self.client.get('/api/doacoes/exportar/?formato=pdf&q=Doador')
+        self.assertEqual((pdf.status_code, pdf['Content-Type']), (200, 'application/pdf'))
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        # Aspas curvas, travessão e emoji na descrição não podem derrubar o PDF.
+        self.assertEqual(self.client.get('/api/doacoes/exportar/?formato=pdf').status_code, 200)
+        self.assertEqual(self.client.get('/api/doacoes/exportar/?formato=csv').status_code, 400)
+        self.entrar(self.educador)
+        self.assertEqual(self.client.get('/api/doacoes/exportar/?formato=xlsx').status_code, 403)
 
     def test_restricoes_no_banco(self):
         self.post()
@@ -258,3 +334,14 @@ class GestaoTests(TestCase):
         self.tecnico.refresh_from_db()
         self.assertTrue(self.tecnico.check_password('Nova-Senha-Segura-891!'))
         self.assertNotEqual(self.tecnico.password, 'Nova-Senha-Segura-891!')
+
+    def test_regras_da_nova_senha(self):
+        atual = 'Senha-Teste-Extensa-765!'
+        for nova, trecho in [('Abc-123!', 'muito curta'), ('84736251940273', 'inteiramente numérica'),
+                             ('password1234', 'muito comum'), (self.tecnico.username + '1', 'parecida'),
+                             (atual, 'diferente da atual')]:
+            r = self.client.post('/api/senha/', {'atual': atual, 'nova': nova}, content_type='application/json')
+            self.assertEqual(r.status_code, 400, nova)
+            self.assertIn(trecho, r.content.decode('unicode_escape'), nova)
+        self.tecnico.refresh_from_db()
+        self.assertTrue(self.tecnico.check_password(atual))

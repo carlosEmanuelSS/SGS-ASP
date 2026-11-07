@@ -38,9 +38,11 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   await page
     .getByRole("button", { name: "Registrar atendimento", exact: true })
     .click();
-  await page
-    .getByLabel("Aluno *", { exact: true })
-    .selectOption({ label: "Aluno E2E · 01/01/2010" });
+  await page.getByLabel("Aluno *", { exact: true }).fill("Aluno E2E");
+  await page.getByRole("option", { name: /Aluno E2E/ }).click();
+  await expect(page.getByLabel("Aluno *", { exact: true })).toHaveValue(
+    "Aluno E2E",
+  );
   await page
     .getByLabel("Descrição *", { exact: true })
     .fill("Relato confidencial E2E");
@@ -79,6 +81,17 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
     page.getByText("Relato confidencial E2E", { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await navegar(page, "Atendimentos");
+  await expect(
+    page.getByRole("button", { name: /^Abrir prontuário de / }),
+  ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Abrir prontuário de Aluno E2E", exact: true })
+    .click();
+  await expect(page.getByText("Prontuário do aluno")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Ver registro de/ }),
+  ).toHaveCount(1);
   await navegar(page, "Alunos");
   await page
     .getByRole("button", { name: "Ver ficha de Aluno E2E", exact: true })
@@ -109,24 +122,44 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
     page.getByText("Registro salvo com sucesso.", { exact: true }),
   ).toBeVisible();
   await navegar(page, "Relatórios");
+  // O dashboard fica no sistema de outro grupo: aqui só o convite e a exportação.
   await expect(
-    page.getByRole("heading", { name: "Doações recebidas" }),
+    page.getByRole("heading", { name: /Para acessar o dashboard/ }),
   ).toBeVisible();
-  await expect(page.getByText(/R\$\s*125,50/)).toBeVisible();
+  await expect(page.locator(".report-toolbar")).toHaveCount(0);
   await page.screenshot({
     path: "test-results/relatorios-desktop.png",
     fullPage: true,
   });
-  const downloadPromise = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Exportar planilha", exact: true })
-    .click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(
-    /^relatorio-sgs-\d{2}-\d{2}-\d{4}-a-\d{2}-\d{2}-\d{4}\.xlsx$/,
-  );
-  expect(await download.failure()).toBeNull();
+  for (const [item, arquivoEsperado] of [
+    [
+      /^Planilha \(Excel\)/,
+      /^relatorio-sgs-\d{2}-\d{2}-\d{4}-a-\d{2}-\d{2}-\d{4}\.xlsx$/,
+    ],
+    [
+      /^Relatório \(PDF\)/,
+      /^relatorio-sgs-\d{2}-\d{2}-\d{4}-a-\d{2}-\d{2}-\d{4}\.pdf$/,
+    ],
+  ]) {
+    const baixando = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Exportar", exact: true }).click();
+    await page.getByRole("menuitem", { name: item }).click();
+    const arquivo = await baixando;
+    expect(arquivo.suggestedFilename()).toMatch(arquivoEsperado);
+    expect(await arquivo.failure()).toBeNull();
+  }
   await navegar(page, "Doações");
+  for (const [item, arquivoEsperado] of [
+    [/^Planilha \(Excel\)/, /^doacoes-\d{2}-\d{2}-\d{4}\.xlsx$/],
+    [/^Relatório \(PDF\)/, /^doacoes-\d{2}-\d{2}-\d{4}\.pdf$/],
+  ]) {
+    const baixando = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Exportar", exact: true }).click();
+    await page.getByRole("menuitem", { name: item }).click();
+    const arquivo = await baixando;
+    expect(arquivo.suggestedFilename()).toMatch(arquivoEsperado);
+    expect(await arquivo.failure()).toBeNull();
+  }
   await page.getByRole("button", { name: /Ver registro de/ }).click();
   await page
     .getByRole("button", { name: "Corrigir ou cancelar", exact: true })
@@ -212,8 +245,13 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   ).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(page.getByRole("navigation").getByRole("button")).toHaveCount(1);
+  await expect(
+    page.locator(".sidebar").getByRole("button", { name: "Alterar senha" }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.locator(".user-trigger").click();
   await page
-    .getByRole("button", { name: "Alterar senha", exact: true })
+    .getByRole("menuitem", { name: "Alterar senha", exact: true })
     .click();
   await page
     .getByLabel("Senha atual", { exact: true })

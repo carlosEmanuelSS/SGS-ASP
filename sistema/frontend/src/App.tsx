@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api, mensagem } from "./api";
 import type { User } from "./api";
@@ -12,6 +12,7 @@ import { Icon } from "./Icon";
 import logoAsp from "./assets/logo-asp.png";
 import mascoteAsp from "./assets/mascote-asp.png";
 import { Senha } from "./features/gestao/Senha";
+import { Educadores } from "./features/oficinas/Educadores";
 type Modulo =
   | "alunos"
   | "oficinas"
@@ -20,7 +21,8 @@ type Modulo =
   | "doacoes"
   | "painel"
   | "relatorios"
-  | "senha";
+  | "senha"
+  | "educadores";
 /** Primeira tela após o login: Visão geral para quem vê indicadores. */
 function inicial(user: User): Modulo {
   if (user.pode_ver_indicadores) return "painel";
@@ -255,12 +257,7 @@ export default function App() {
           {menuAberto ? "Fechar menu" : "Menu"}
         </button>
         <span className="app-caption">Sistema de Gestão Social</span>
-        <div className="user">
-          <span className="user-avatar" aria-hidden="true">
-            <Icon name="user" />
-          </span>
-          <span className="user-name">{user.nome}</span>
-        </div>
+        <MenuPerfil nome={user.nome} onSenha={() => navegar("senha")} />
       </header>
       {menuAberto && (
         <div
@@ -310,6 +307,16 @@ export default function App() {
             >
               <Icon name="users" />
               Alunos
+            </button>
+          )}
+          {user.administrador && (
+            <button
+              className={modulo === "educadores" ? "selected" : ""}
+              aria-current={modulo === "educadores" ? "page" : undefined}
+              onClick={() => navegar("educadores")}
+            >
+              <Icon name="school" />
+              Educadores
             </button>
           )}
           {user.pode_ver_oficinas && (
@@ -370,10 +377,6 @@ export default function App() {
               Administrar usuários
             </a>
           )}
-          <button className="secondary" onClick={() => navegar("senha")}>
-            <Icon name="lock" />
-            Alterar senha
-          </button>
           <button
             className="secondary"
             onClick={() => void sair()}
@@ -396,6 +399,8 @@ export default function App() {
         )}
         {modulo === "senha" ? (
           <Senha />
+        ) : modulo === "educadores" && user.administrador ? (
+          <Educadores />
         ) : modulo === "painel" && user.pode_ver_indicadores ? (
           <VisaoGeral user={user} onNavegar={navegar} />
         ) : modulo === "relatorios" && user.pode_ver_indicadores ? (
@@ -420,6 +425,64 @@ export default function App() {
       <footer inert={menuAberto} aria-hidden={menuAberto || undefined}>
         Ação Social do Planalto · Sistema de Gestão Social
       </footer>
+    </div>
+  );
+}
+
+/** Nome do usuário no topo; ao clicar, abre o menu da conta (Alterar senha). */
+function MenuPerfil({ nome, onSenha }: { nome: string; onSenha: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  const gatilho = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    raiz.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const fora = (e: MouseEvent) => {
+      if (!raiz.current?.contains(e.target as Node)) setAberto(false);
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAberto(false);
+        gatilho.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [aberto]);
+  return (
+    <div className="user user-menu" ref={raiz}>
+      <button
+        ref={gatilho}
+        type="button"
+        className="user-trigger"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto(!aberto)}
+      >
+        <span className="user-avatar" aria-hidden="true">
+          <Icon name="user" />
+        </span>
+        <span className="user-name">{nome}</span>
+      </button>
+      {aberto && (
+        <div className="user-dropdown" role="menu" aria-label="Minha conta">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAberto(false);
+              onSenha();
+            }}
+          >
+            <Icon name="lock" />
+            Alterar senha
+          </button>
+        </div>
+      )}
     </div>
   );
 }

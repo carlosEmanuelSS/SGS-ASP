@@ -73,8 +73,7 @@ def user_data(user):
             'pode_ver_alunos': user.has_perm('alunos.view_aluno'),
             'pode_ver_frequencia': user.has_perm('frequencia.view_chamada'),
             'pode_criar_chamada': user.has_perm('frequencia.add_chamada'),
-            'pode_corrigir_chamada': user.has_perm('frequencia.change_chamada'),
-            'pode_gerir_educadores': user.has_perm('frequencia.gerir_responsaveis')}
+            'pode_corrigir_chamada': user.has_perm('frequencia.change_chamada')}
 
 
 @endpoint(['GET'])

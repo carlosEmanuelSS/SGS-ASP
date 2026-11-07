@@ -4,16 +4,26 @@ import { api, ApiError, mensagem } from "../../api";
 import type { Lista, User } from "../../api";
 import { Icon } from "../../Icon";
 import type { IconName } from "../../Icon";
-import { Contador, Esqueleto, iniciais, tomAvatar } from "../../ui";
 import {
+  Contador,
+  Esqueleto,
+  iniciais,
+  MenuExportar,
+  tomAvatar,
+} from "../../ui";
+import {
+  Autocomplete,
   FormFooter,
   FormProgressHeader,
   FormSection,
+  moedaDigitada,
+  moedaExibida,
   OpcoesCartao,
   Segmentado,
   useTocados,
   ValidatedFormField,
 } from "../../forms";
+import type { Opcao } from "../../forms";
 
 export const tiposAtendimento: Record<string, string> = {
   social: "Social",
@@ -157,6 +167,13 @@ export function Registros({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  /** Aluno cujo prontuário está aberto (só na tela de Atendimentos). */
+  const [prontuario, setProntuario] = useState<{
+    id: string;
+    nome: string;
+  } | null>(null);
+  const alunoFiltro = aluno ?? prontuario;
+  const agrupado = atendimento && !alunoFiltro;
   useEffect(() => {
     const controller = new AbortController();
     setList(null);
@@ -166,7 +183,8 @@ export function Registros({
         q: query,
         status,
         page: String(page),
-        ...(aluno ? { aluno: aluno.id } : {}),
+        ...(alunoFiltro ? { aluno: alunoFiltro.id } : {}),
+        ...(agrupado ? { agrupar: "aluno" } : {}),
         ...(!atendimento && categoria ? { categoria } : {}),
         ...(atendimento && tipoFiltro ? { tipo: tipoFiltro } : {}),
       });
@@ -193,8 +211,8 @@ export function Registros({
     tipoFiltro,
     page,
     revision,
-    aluno?.id,
-    atendimento,
+    alunoFiltro?.id,
+    agrupado,
   ]);
   async function abrir(id: string) {
     setBusy(true);
@@ -220,7 +238,7 @@ export function Registros({
         tipo={tipo}
         initial={selected}
         user={user}
-        aluno={aluno}
+        aluno={alunoFiltro ?? undefined}
         onCancel={() => setView(selected ? "details" : "list")}
         onSave={(r) => {
           setSelected(r);
@@ -265,7 +283,22 @@ export function Registros({
       {view === "details" && (
         <button className="link back-link" onClick={voltar}>
           <Icon name="arrowLeft" />
-          Voltar para {title.toLowerCase()}
+          {prontuario
+            ? `Voltar para o prontuário de ${prontuario.nome}`
+            : `Voltar para ${title.toLowerCase()}`}
+        </button>
+      )}
+      {view === "list" && prontuario && (
+        <button
+          className="link back-link"
+          onClick={() => {
+            setProntuario(null);
+            setList(null);
+            setPage(1);
+          }}
+        >
+          <Icon name="arrowLeft" />
+          Voltar para todos os atendimentos
         </button>
       )}
       {aluno ? (
@@ -324,11 +357,30 @@ export function Registros({
                 </p>
               </div>
             </div>
-            {view === "list" && podeCriar && (
-              <button className="btn-primary" onClick={novo}>
-                <Icon name="plus" />
-                {doacoesPage ? "Registrar doação" : "Registrar atendimento"}
-              </button>
+            {view === "list" && (doacoesPage || podeCriar) && (
+              <div className="head-actions">
+                {doacoesPage && (
+                  <MenuExportar
+                    rotulo="Exportar doações"
+                    endereco={(formato) =>
+                      "/api/doacoes/exportar/?" +
+                      new URLSearchParams({
+                        q: query,
+                        status,
+                        categoria,
+                        formato,
+                      })
+                    }
+                    onErro={setError}
+                  />
+                )}
+                {podeCriar && (
+                  <button className="btn-primary" onClick={novo}>
+                    <Icon name="plus" />
+                    {doacoesPage ? "Registrar doação" : "Registrar atendimento"}
+                  </button>
+                )}
+              </div>
             )}
             {view === "details" && selected?.pode_editar && (
               <button
@@ -477,21 +529,50 @@ export function Registros({
           onAbrir={(id) => void abrir(id)}
         />
       ) : (
-        <ListaAtendimentos
-          list={list}
-          error={error}
-          busy={busy}
-          query={query}
-          status={status}
-          tipoFiltro={tipoFiltro}
-          page={page}
-          doAluno={!!aluno}
-          onQuery={filtrar(setQuery)}
-          onStatus={filtrar(setStatus)}
-          onTipo={filtrar(setTipoFiltro)}
-          onPage={setPage}
-          onAbrir={(id) => void abrir(id)}
-        />
+        <>
+          {prontuario && (
+            <article className="card record-head prontuario-head">
+              <div className="person">
+                <span
+                  className={`avatar avatar-lg avatar-${tomAvatar(prontuario.nome)}`}
+                  aria-hidden="true"
+                >
+                  {iniciais(prontuario.nome)}
+                </span>
+                <div>
+                  <small className="cell-sub">Prontuário do aluno</small>
+                  <h2 className="record-title">{prontuario.nome}</h2>
+                  <p className="record-meta">
+                    {list
+                      ? `${list.total} ${list.total === 1 ? "atendimento" : "atendimentos"} que você pode ver, do mais recente ao mais antigo`
+                      : "Carregando histórico…"}
+                  </p>
+                </div>
+              </div>
+            </article>
+          )}
+          <ListaAtendimentos
+            list={list}
+            error={error}
+            busy={busy}
+            query={query}
+            status={status}
+            tipoFiltro={tipoFiltro}
+            page={page}
+            doAluno={!!alunoFiltro}
+            agrupado={agrupado}
+            onProntuario={(id, nome) => {
+              setProntuario({ id, nome });
+              setList(null);
+              setPage(1);
+            }}
+            onQuery={filtrar(setQuery)}
+            onStatus={filtrar(setStatus)}
+            onTipo={filtrar(setTipoFiltro)}
+            onPage={setPage}
+            onAbrir={(id) => void abrir(id)}
+          />
+        </>
       )}
     </section>
   );
@@ -666,7 +747,18 @@ function DetalheAtendimento({ r }: { r: Registro }) {
     </div>
   );
 }
-/** Lista de atendimentos no estilo prontuário: busca, filtros e selos de sigilo. */
+/** Linha da lista agrupada: um prontuário por aluno. */
+type GrupoAluno = {
+  aluno: string;
+  aluno_nome: string;
+  total: number;
+  ultimo_data: string;
+  ultimo_tipo: string;
+};
+/**
+ * Lista de atendimentos: agrupada (um prontuário por aluno) ou os atendimentos
+ * de um aluno, com busca, filtros e selos de sigilo.
+ */
 function ListaAtendimentos({
   list,
   error,
@@ -676,6 +768,8 @@ function ListaAtendimentos({
   tipoFiltro,
   page,
   doAluno,
+  agrupado,
+  onProntuario,
   onQuery,
   onStatus,
   onTipo,
@@ -690,6 +784,8 @@ function ListaAtendimentos({
   tipoFiltro: string;
   page: number;
   doAluno: boolean;
+  agrupado?: boolean;
+  onProntuario?: (id: string, nome: string) => void;
   onQuery: (v: string) => void;
   onStatus: (v: string) => void;
   onTipo: (v: string) => void;
@@ -753,87 +849,158 @@ function ListaAtendimentos({
         <>
           <div className="table-scroll">
             <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  {!doAluno && <th>Aluno</th>}
-                  <th>Modalidade</th>
-                  <th>Nível de sigilo</th>
-                  <th>Situação</th>
-                  <th>
-                    <span className="sr-only">Ação</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.items.map((r) => {
-                  const nome = r.aluno_nome || "Aluno";
-                  return (
-                    <tr key={r.id}>
-                      <td className="muted-cell">
-                        <span className="date-cell">
-                          <Icon name="calendar" />
-                          {data(r.data)}
-                        </span>
-                      </td>
-                      {!doAluno && (
+              {agrupado ? (
+                <>
+                  <thead>
+                    <tr>
+                      <th>Aluno</th>
+                      <th>Último atendimento</th>
+                      <th>Modalidade</th>
+                      <th>Atendimentos</th>
+                      <th>
+                        <span className="sr-only">Ação</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* A API devolve outro formato quando agrupa por aluno. */}
+                    {(list.items as unknown as GrupoAluno[]).map((g) => (
+                      <tr key={g.aluno}>
                         <td>
                           <div className="person">
                             <span
-                              className={`avatar avatar-${tomAvatar(nome)}`}
+                              className={`avatar avatar-${tomAvatar(g.aluno_nome)}`}
                               aria-hidden="true"
                             >
-                              {iniciais(nome)}
+                              {iniciais(g.aluno_nome)}
                             </span>
-                            <div>
-                              <span className="cell-main">{nome}</span>
-                              <small className="cell-sub">
-                                Atendido por {r.autor}
-                              </small>
-                            </div>
+                            <span className="cell-main">{g.aluno_nome}</span>
                           </div>
                         </td>
-                      )}
-                      <td>
-                        <span className="kind-badge kind-care">
-                          <Icon name={iconesAtendimento[r.tipo] || "info"} />
-                          {tiposAtendimento[r.tipo] || r.tipo}
-                        </span>
-                      </td>
-                      <td>
-                        <SeloSigilo nivel={r.nivel} />
-                      </td>
-                      <td>
-                        <Situacao cancelado={r.cancelado} />
-                      </td>
-                      <td className="actions-cell">
-                        <button
-                          className="btn-ghost"
-                          disabled={busy}
-                          onClick={() => onAbrir(r.id)}
-                          aria-label={
-                            "Ver registro de " +
-                            data(r.data) +
-                            " " +
-                            (r.aluno_nome || "")
-                          }
-                        >
-                          Abrir prontuário
-                          <Icon name="arrowRight" />
-                        </button>
-                      </td>
+                        <td className="muted-cell">
+                          <span className="date-cell">
+                            <Icon name="calendar" />
+                            {data(g.ultimo_data)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="kind-badge kind-care">
+                            <Icon
+                              name={iconesAtendimento[g.ultimo_tipo] || "info"}
+                            />
+                            {tiposAtendimento[g.ultimo_tipo] || g.ultimo_tipo}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="count-pill">{g.total}</span>
+                        </td>
+                        <td className="actions-cell">
+                          <button
+                            className="btn-ghost"
+                            onClick={() =>
+                              onProntuario?.(g.aluno, g.aluno_nome)
+                            }
+                            aria-label={"Abrir prontuário de " + g.aluno_nome}
+                          >
+                            Abrir prontuário
+                            <Icon name="arrowRight" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </>
+              ) : (
+                <>
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      {!doAluno && <th>Aluno</th>}
+                      <th>Modalidade</th>
+                      <th>Nível de sigilo</th>
+                      <th>Situação</th>
+                      <th>
+                        <span className="sr-only">Ação</span>
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
+                  </thead>
+                  <tbody>
+                    {list.items.map((r) => {
+                      const nome = r.aluno_nome || "Aluno";
+                      return (
+                        <tr key={r.id}>
+                          <td className="muted-cell">
+                            <span className="date-cell">
+                              <Icon name="calendar" />
+                              {data(r.data)}
+                            </span>
+                          </td>
+                          {!doAluno && (
+                            <td>
+                              <div className="person">
+                                <span
+                                  className={`avatar avatar-${tomAvatar(nome)}`}
+                                  aria-hidden="true"
+                                >
+                                  {iniciais(nome)}
+                                </span>
+                                <div>
+                                  <span className="cell-main">{nome}</span>
+                                  <small className="cell-sub">
+                                    Atendido por {r.autor}
+                                  </small>
+                                </div>
+                              </div>
+                            </td>
+                          )}
+                          <td>
+                            <span className="kind-badge kind-care">
+                              <Icon
+                                name={iconesAtendimento[r.tipo] || "info"}
+                              />
+                              {tiposAtendimento[r.tipo] || r.tipo}
+                            </span>
+                          </td>
+                          <td>
+                            <SeloSigilo nivel={r.nivel} />
+                          </td>
+                          <td>
+                            <Situacao cancelado={r.cancelado} />
+                          </td>
+                          <td className="actions-cell">
+                            <button
+                              className="btn-ghost"
+                              disabled={busy}
+                              onClick={() => onAbrir(r.id)}
+                              aria-label={
+                                "Ver registro de " +
+                                data(r.data) +
+                                " " +
+                                (r.aluno_nome || "")
+                              }
+                            >
+                              Ver atendimento
+                              <Icon name="arrowRight" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </>
+              )}
             </table>
           </div>
           <div className="page-footer in-card">
             <span>
               {list.total}{" "}
-              {list.total === 1
-                ? "registro encontrado"
-                : "registros encontrados"}
+              {agrupado
+                ? list.total === 1
+                  ? "aluno com atendimentos"
+                  : "alunos com atendimentos"
+                : list.total === 1
+                  ? "registro encontrado"
+                  : "registros encontrados"}
             </span>
             {list.pages > 1 && (
               <div className="pager">
@@ -1140,6 +1307,7 @@ function RegistroForm({
   const [fields, setFields] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<Lista | null>(null);
+  const [alunoEscolhido, setAlunoEscolhido] = useState<Opcao | null>(null);
   const tocados = useTocados();
   useEffect(() => {
     if (!dirty) return;
@@ -1270,14 +1438,28 @@ function RegistroForm({
         <input
           {...p}
           onBlur={() => tocados.tocar(key)}
-          type={extra.type || "text"}
-          value={form[key]}
-          maxLength={extra.max ?? 160}
+          type={extra.type === "moeda" ? "text" : extra.type || "text"}
+          value={extra.type === "moeda" ? moedaExibida(form[key]) : form[key]}
+          maxLength={extra.type === "moeda" ? undefined : (extra.max ?? 160)}
           max={extra.type === "date" ? dia() : undefined}
           min={extra.type === "number" ? "0.01" : undefined}
           step={extra.type === "number" ? "0.01" : undefined}
-          inputMode={extra.type === "number" ? "decimal" : undefined}
-          onChange={(e) => mudar(key, e.target.value)}
+          placeholder={extra.type === "moeda" ? "R$ 0,00" : undefined}
+          inputMode={
+            extra.type === "number"
+              ? "decimal"
+              : extra.type === "moeda"
+                ? "numeric"
+                : undefined
+          }
+          onChange={(e) =>
+            mudar(
+              key,
+              extra.type === "moeda"
+                ? moedaDigitada(e.target.value, 12)
+                : e.target.value,
+            )
+          }
         />
       )}
     </ValidatedFormField>
@@ -1346,58 +1528,29 @@ function RegistroForm({
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <ValidatedFormField
-                      rotulo="Buscar aluno"
-                      dica="Digite parte do nome para filtrar a lista."
-                    >
-                      {(p) => (
-                        <div className="input-icon">
-                          <Icon name="search" />
-                          <input
-                            {...p}
-                            type="search"
-                            value={search}
-                            maxLength={160}
-                            placeholder="Nome do aluno"
-                            onChange={(e) => setSearch(e.target.value)}
-                          />
-                        </div>
-                      )}
-                    </ValidatedFormField>
-                    <ValidatedFormField
-                      rotulo="Aluno"
-                      obrigatorio
-                      dica="Exibindo até 20 resultados."
-                      erro={erro("aluno")}
-                      ok={ok("aluno")}
-                    >
-                      {(p) => (
-                        <select
-                          {...p}
-                          aria-label="Aluno *"
-                          value={form.aluno}
-                          onBlur={() => tocados.tocar("aluno")}
-                          onChange={(e) => mudar("aluno", e.target.value)}
-                        >
-                          <option value="">Selecione o aluno</option>
-                          {form.aluno &&
-                            !options?.items.some(
-                              (a) => a.id === form.aluno,
-                            ) && (
-                              <option value={form.aluno}>
-                                Aluno selecionado
-                              </option>
-                            )}
-                          {options?.items.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.nome} · {data(a.data_nascimento)}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </ValidatedFormField>
-                  </>
+                  <Autocomplete
+                    rotulo="Aluno"
+                    obrigatorio
+                    placeholder="Digite o nome do aluno"
+                    dica="Clique para ver a lista ou digite parte do nome."
+                    vazio="Nenhum aluno encontrado com esse nome."
+                    erro={erro("aluno")}
+                    opcoes={
+                      options?.items.map((a) => ({
+                        id: a.id,
+                        rotulo: a.nome,
+                        detalhe: "Nascimento " + data(a.data_nascimento),
+                      })) ?? null
+                    }
+                    selecionado={alunoEscolhido}
+                    busca={search}
+                    onBusca={setSearch}
+                    onBlur={() => tocados.tocar("aluno")}
+                    onSelecionar={(o) => {
+                      setAlunoEscolhido(o);
+                      mudar("aluno", o?.id ?? "");
+                    }}
+                  />
                 )}
               </FormSection>
               <FormSection
@@ -1522,7 +1675,7 @@ function RegistroForm({
                 }
               >
                 {dinheiro ? (
-                  campoTexto("valor", "Valor (R$)", true, { type: "number" })
+                  campoTexto("valor", "Valor (R$)", true, { type: "moeda" })
                 ) : (
                   <>
                     {campoTexto("quantidade", "Quantidade", true, {

@@ -15,10 +15,24 @@ def aluno(nome='Aluno Ativo', status='ativo'):
         parentesco='Mãe', telefone='61999991234', status=status)
 
 
+def educador_teste(username='educador_teste'):
+    user, _ = User.objects.get_or_create(username=username, defaults={'first_name': 'Paula', 'last_name': 'Educadora'})
+    user.groups.add(Group.objects.get_or_create(name='Educador')[0])
+    return user
+
+
 def dados_oficina(**changes):
-    return {'nome':'Futebol', 'turma':'Turma A', 'tipo':'Esporte', 'educador':'Educador de Teste',
+    return {'nome':'Futebol', 'turma':'Turma A', 'tipo':'Esporte', 'educador_usuario':educador_teste().pk,
         'unidade':'Sede', 'dias_semana':[0,2], 'inicio':'09:00', 'fim':'10:00',
         'limite_vagas':1, 'descricao':'', 'ativa':True, **changes}
+
+
+def no_banco(dados):
+    # Para criar direto pelo ORM: o id da conta vai em educador_usuario_id e o nome exibido em educador.
+    dados = dict(dados)
+    dados['educador_usuario_id'] = dados.pop('educador_usuario')
+    dados['educador'] = 'Paula Educadora'
+    return dados
 
 
 class IntegracaoTests(TestCase):
@@ -118,9 +132,26 @@ class IntegracaoTests(TestCase):
         self.assertEqual(set(result['items'][0]),{'id','nome','data_nascimento'})
         self.assertEqual(self.client.get(self.path+'candidatos/?q=inexistente').json()['total'],0)
 
+    def test_educador_precisa_ser_conta_educadora_ativa(self):
+        post = lambda **c: self.client.post('/api/oficinas/', dados_oficina(nome='Teatro', **c), content_type='application/json')
+        # O nome agora vem da conta; texto livre não é mais aceito.
+        self.assertEqual(self.oficina['educador'], 'Paula Educadora')
+        self.assertEqual(self.client.post('/api/oficinas/', {**dados_oficina(nome='Teatro'), 'educador': 'Nome livre'},
+                                          content_type='application/json').status_code, 400)
+        self.assertEqual(post(educador_usuario=None).status_code, 400)
+        self.assertEqual(post(educador_usuario='1').status_code, 400)
+        self.assertIn('educador_usuario', post(educador_usuario=self.user.pk).json()['fields'])
+        inativo = educador_teste('educador_inativo')
+        inativo.is_active = False
+        inativo.save()
+        self.assertEqual(post(educador_usuario=inativo.pk).status_code, 400)
+        lista = self.client.get('/api/oficinas/educadores/').json()['items']
+        self.assertEqual([e['usuario'] for e in lista], ['educador_teste'])
+        self.assertEqual(lista[0]['nome'], 'Paula Educadora')
+
     def test_busca_paginacao_oficinas(self):
         for i in range(20):
-            Oficina.objects.create(**dados_oficina(turma=f'B{i}'))
+            Oficina.objects.create(**no_banco(dados_oficina(turma=f'B{i}')))
         response = self.client.get('/api/oficinas/?page=2').json()
         self.assertEqual(response['total'],21)
         self.assertEqual(len(response['items']),1)
@@ -130,7 +161,7 @@ class IntegracaoTests(TestCase):
         mid = self.matricular().json()['id']
         path = self.path+f'matriculas/{mid}/cancelar/'
         self.assertEqual(self.client.post(path,{'motivo':''},content_type='application/json').status_code,400)
-        other = Oficina.objects.create(**dados_oficina(turma='Outra'))
+        other = Oficina.objects.create(**no_banco(dados_oficina(turma='Outra')))
         self.assertEqual(self.client.post(f'/api/oficinas/{other.pk}/matriculas/{mid}/cancelar/',{'motivo':'Teste'},content_type='application/json').status_code,404)
         self.assertEqual(self.client.post(path,{'motivo':'Teste'},content_type='application/json').status_code,200)
         self.assertEqual(self.client.post(path,{'motivo':'Teste'},content_type='application/json').status_code,409)
@@ -164,7 +195,7 @@ class IntegracaoTests(TestCase):
 class ConcorrenciaPostgreSQLTests(TransactionTestCase):
     def setUp(self):
         self.user = User.objects.create_superuser('admin',password='teste-local-nao-real')
-        self.oficina = Oficina.objects.create(**dados_oficina())
+        self.oficina = Oficina.objects.create(**no_banco(dados_oficina()))
         self.a = aluno('Aluno A')
         self.b = aluno('Aluno B')
 
@@ -189,3 +220,51 @@ class ConcorrenciaPostgreSQLTests(TransactionTestCase):
     def test_matricula_duplicada_simultanea(self):
         self.assertEqual(self.disputar([self.a.pk,self.a.pk]),[201,409])
         self.assertEqual(Matricula.objects.filter(ativa=True).count(),1)
+
+
+class ConsultaEducadoresTests(TestCase):
+    def setUp(self):
+        from .models import PerfilEducador
+        self.admin = User.objects.create_superuser('admin', password='teste-local-nao-real')
+        self.ana = educador_teste('ana.mendes')
+        self.ana.first_name, self.ana.last_name, self.ana.email = 'Ana', 'Mendes', 'ana@exemplo.org'
+        self.ana.save()
+        PerfilEducador.objects.create(usuario=self.ana, telefone='61999998888', observacoes='Turno da tarde')
+        self.inativo = educador_teste('beto.inativo')
+        self.inativo.is_active = False
+        self.inativo.save()
+        Oficina.objects.create(**no_banco(dados_oficina(nome='Robótica', educador_usuario=self.ana.pk)))
+        self.client.force_login(self.admin, backend='django.contrib.auth.backends.ModelBackend')
+
+    def test_consulta_lista_contato_situacao_e_oficinas(self):
+        r = self.client.get('/api/educadores/').json()
+        ana = next(i for i in r['items'] if i['usuario'] == 'ana.mendes')
+        self.assertEqual((ana['nome'], ana['email'], ana['telefone'], ana['observacoes'], ana['ativo']),
+                         ('Ana Mendes', 'ana@exemplo.org', '61999998888', 'Turno da tarde', True))
+        self.assertEqual([o['nome'] for o in ana['oficinas']], ['Robótica'])
+        inativo = next(i for i in r['items'] if i['usuario'] == 'beto.inativo')
+        self.assertEqual((inativo['ativo'], inativo['telefone'], inativo['oficinas']), (False, '', []))
+        for busca in ['mendes', 'ana@exemplo', 'ana.men']:
+            self.assertEqual([i['usuario'] for i in self.client.get('/api/educadores/?q=' + busca).json()['items']],
+                             ['ana.mendes'], busca)
+
+    def test_somente_administrador_consulta(self):
+        call_command('configurar_perfis', verbosity=0)
+        secretaria = User.objects.create_user('secretaria')
+        secretaria.groups.add(Group.objects.get(name='Secretaria'))
+        self.client.force_login(secretaria, backend='django.contrib.auth.backends.ModelBackend')
+        self.assertEqual(self.client.get('/api/educadores/').status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get('/api/educadores/').status_code, 401)
+
+    def test_painel_adm_mostra_e_valida_dados_do_educador(self):
+        from .admin import PerfilEducadorForm
+        pagina = self.client.get(f'/admin/auth/user/{self.ana.pk}/change/')
+        self.assertEqual(pagina.status_code, 200)
+        # O campo do formulário, não só o texto (que também aparece na lista de permissões).
+        self.assertContains(pagina, 'id="id_perfil_educador-0-telefone"')
+        self.assertNotContains(self.client.get('/admin/auth/user/add/'), 'perfil_educador')
+        self.assertFalse(PerfilEducadorForm({'telefone': '1234', 'observacoes': ''}).is_valid())
+        form = PerfilEducadorForm({'telefone': '(61) 99999-8888', 'observacoes': ''})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['telefone'], '61999998888')

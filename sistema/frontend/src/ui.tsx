@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { mensagem } from "./api";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 
@@ -305,6 +306,112 @@ export function Esqueleto({
           {Array.from({ length: linhas }, (_, i) => (
             <span className="sk sk-card tall" key={i} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Botão "Exportar" com menu Excel/PDF; quem usa informa o endereço de cada formato. */
+export function MenuExportar({
+  rotulo,
+  endereco,
+  onErro,
+}: {
+  rotulo: string;
+  endereco: (formato: "xlsx" | "pdf") => string;
+  onErro: (m: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [baixando, setBaixando] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  const gatilho = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    raiz.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const fora = (e: MouseEvent) => {
+      if (!raiz.current?.contains(e.target as Node)) setAberto(false);
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAberto(false);
+        gatilho.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [aberto]);
+  async function baixar(formato: "xlsx" | "pdf") {
+    setAberto(false);
+    setBaixando(true);
+    onErro("");
+    try {
+      const response = await fetch(endereco(formato), {
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        if (response.status === 401)
+          window.dispatchEvent(new Event("session-expired"));
+        throw new Error("Não foi possível exportar o arquivo.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        /filename="([^"]+)"/.exec(
+          response.headers.get("Content-Disposition") || "",
+        )?.[1] || "relatorio." + formato;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      onErro(mensagem(e));
+    } finally {
+      setBaixando(false);
+    }
+  }
+  return (
+    <div className="export-menu" ref={raiz}>
+      <button
+        ref={gatilho}
+        type="button"
+        className="btn-outline btn-lg"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        disabled={baixando}
+        onClick={() => setAberto(!aberto)}
+      >
+        <Icon name="download" />
+        {baixando ? "Gerando…" : "Exportar"}
+        <Icon name="chevron" />
+      </button>
+      {aberto && (
+        <div className="user-dropdown" role="menu" aria-label={rotulo}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void baixar("xlsx")}
+          >
+            <Icon name="chart" />
+            <span>
+              Planilha (Excel)
+              <small>Para editar</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void baixar("pdf")}
+          >
+            <Icon name="book" />
+            <span>
+              Relatório (PDF)
+              <small>Para imprimir</small>
+            </span>
+          </button>
         </div>
       )}
     </div>

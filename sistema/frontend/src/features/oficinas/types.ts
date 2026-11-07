@@ -13,7 +13,8 @@ export type DadosOficina = {
   nome: string;
   turma: string;
   tipo: string;
-  educador: string;
+  /** Conta do grupo Educador; o nome exibido vem em Oficina.educador. */
+  educador_usuario: number | null;
   unidade: string;
   dias_semana: number[];
   inicio: string;
@@ -24,6 +25,7 @@ export type DadosOficina = {
 };
 export type Oficina = DadosOficina & {
   id: string;
+  educador: string;
   versao: number;
   ocupadas: number;
   disponiveis: number;

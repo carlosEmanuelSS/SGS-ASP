@@ -1,6 +1,5 @@
 from datetime import date
 from uuid import UUID
-from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Q, Count, Exists, OuterRef
@@ -8,7 +7,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from alunos.views import endpoint
 from oficinas.models import Oficina, Matricula
-from .models import Chamada, Presenca, RevisaoChamada, ResponsavelTurma, HistoricoAcesso
+from .models import Chamada, Presenca, RevisaoChamada
 
 
 def erro(message, status=400):
@@ -18,7 +17,7 @@ def erro(message, status=400):
 def turmas_permitidas(user):
     records = Oficina.objects.all()
     if not user.has_perm('frequencia.ver_todas_chamadas'):
-        records = records.filter(acessos_frequencia__usuario=user)
+        records = records.filter(educador_usuario=user)
     return records
 
 
@@ -168,33 +167,3 @@ def chamada(request, pk):
         return erro('Outra operação alterou a chamada. Recarregue e tente novamente.', 409)
     return JsonResponse(serialize(saved, oficina, dia), status=201 if request.method == 'POST' else 200)
 
-
-@endpoint(['GET', 'PUT'], 'frequencia.gerir_responsaveis')
-def responsaveis(request, pk):
-    User = get_user_model()
-    candidatos = User.objects.filter(is_active=True, groups__name='Educador').distinct().order_by('username')
-    with transaction.atomic():
-        oficina = Oficina.objects.select_for_update().filter(pk=pk).first()
-        if not oficina:
-            return erro('Turma não encontrada.', 404)
-        atuais = sorted(oficina.acessos_frequencia.values_list('usuario_id', flat=True))
-        if request.method == 'PUT':
-            data = request.payload
-            if set(data) != {'usuarios', 'anteriores'} or not isinstance(data['usuarios'], list) or not isinstance(data['anteriores'], list):
-                return erro('Informe os educadores e os vínculos anteriores.')
-            ids = data['usuarios']
-            if len(ids) > 50 or any(type(i) is not int for i in ids+data['anteriores']) or len(ids) != len(set(ids)):
-                return erro('Lista de educadores inválida.')
-            if sorted(data['anteriores']) != atuais:
-                return erro('Os vínculos foram alterados por outra pessoa. Recarregue a lista.', 409)
-            if set(ids) != set(candidatos.filter(pk__in=ids).values_list('pk',flat=True)):
-                return erro('Selecione apenas contas ativas do grupo Educador.')
-            HistoricoAcesso.objects.create(oficina=oficina, autor=request.user, antes=atuais, depois=sorted(ids))
-            oficina.acessos_frequencia.exclude(usuario_id__in=ids).delete()
-            ResponsavelTurma.objects.bulk_create([ResponsavelTurma(oficina=oficina, usuario_id=i) for i in set(ids)-set(atuais)])
-    atuais = list(oficina.acessos_frequencia.values_list('usuario_id',flat=True))
-    elegiveis = set(candidatos.values_list('pk',flat=True))
-    opcoes = User.objects.filter(pk__in=elegiveis | set(atuais)).order_by('username')
-    return JsonResponse({'usuarios': atuais,
-        'opcoes': [{'id': u.pk, 'nome': u.get_full_name() or u.username, 'usuario': u.username,
-                    'disponivel': u.pk in elegiveis} for u in opcoes]})

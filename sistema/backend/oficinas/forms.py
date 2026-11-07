@@ -1,11 +1,24 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from .models import Oficina
 
 
+def educadores():
+    return get_user_model().objects.filter(is_active=True, groups__name='Educador').distinct()
+
+
+def nome_educador(user):
+    return user.get_full_name() or user.username
+
+
 class OficinaForm(forms.ModelForm):
+    educador_usuario = forms.ModelChoiceField(queryset=educadores(), error_messages={
+        'required': 'Selecione o educador responsável.',
+        'invalid_choice': 'Selecione um educador cadastrado e ativo.'})
+
     class Meta:
         model = Oficina
-        fields = ['nome', 'turma', 'tipo', 'educador', 'unidade', 'dias_semana',
+        fields = ['nome', 'turma', 'tipo', 'educador_usuario', 'unidade', 'dias_semana',
                   'inicio', 'fim', 'limite_vagas', 'descricao', 'ativa']
 
     def clean_dias_semana(self):
@@ -16,7 +29,7 @@ class OficinaForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        for field in ('nome', 'turma', 'tipo', 'educador', 'unidade'):
+        for field in ('nome', 'turma', 'tipo', 'unidade'):
             if field in data:
                 data[field] = ' '.join(data[field].split())
         if data.get('inicio') and data.get('fim') and data['fim'] <= data['inicio']:

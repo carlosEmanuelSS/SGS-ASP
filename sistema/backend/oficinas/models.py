@@ -8,7 +8,10 @@ class Oficina(models.Model):
     nome = models.CharField(max_length=120)
     turma = models.CharField(max_length=80)
     tipo = models.CharField(max_length=60)
+    # Nome exibido nas listas e relatórios; vem da conta escolhida em educador_usuario.
     educador = models.CharField(max_length=160)
+    educador_usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True,
+                                         blank=True, related_name='oficinas_educador')
     unidade = models.CharField(max_length=120)
     dias_semana = models.JSONField(default=list)
     inicio = models.TimeField()
@@ -52,3 +55,17 @@ class EventoOficina(models.Model):
 
     class Meta:
         ordering = ['-criado_em', '-id']
+
+
+class PerfilEducador(models.Model):
+    """Dados de contato do educador; a conta (nome, e-mail, senha) é o próprio usuário."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='perfil_educador')
+    telefone = models.CharField('Telefone com DDD', max_length=20, blank=True)
+    observacoes = models.TextField('Observações', max_length=2000, blank=True)
+
+    class Meta:
+        verbose_name = 'dados do educador'
+        verbose_name_plural = 'dados do educador'
+
+    def __str__(self):
+        return self.usuario.get_full_name() or self.usuario.username

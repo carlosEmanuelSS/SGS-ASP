@@ -362,6 +362,145 @@ export function Alternancias({
   );
 }
 
+export type Opcao = { id: string; rotulo: string; detalhe?: string };
+
+/**
+ * Busca com lista (combobox): abre ao focar, filtra ao digitar, setas navegam,
+ * Enter escolhe e Esc fecha. Quem usa decide como filtrar (servidor ou local).
+ */
+export function Autocomplete({
+  rotulo,
+  obrigatorio,
+  dica,
+  erro,
+  placeholder,
+  opcoes,
+  selecionado,
+  busca,
+  onBusca,
+  onSelecionar,
+  onBlur,
+  vazio,
+}: {
+  rotulo: string;
+  obrigatorio?: boolean;
+  dica?: string;
+  erro?: string;
+  placeholder?: string;
+  /** null enquanto carrega. */
+  opcoes: Opcao[] | null;
+  selecionado: Opcao | null;
+  busca: string;
+  onBusca: (v: string) => void;
+  onSelecionar: (o: Opcao | null) => void;
+  onBlur?: () => void;
+  vazio: string;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [ativo, setAtivo] = useState(0);
+  const lista = useId();
+  const itens = opcoes ?? [];
+  function escolher(o: Opcao) {
+    onSelecionar(o);
+    onBusca(o.rotulo);
+    setAberto(false);
+  }
+  return (
+    <ValidatedFormField
+      rotulo={rotulo}
+      obrigatorio={obrigatorio}
+      dica={dica}
+      erro={erro}
+      ok={!!selecionado}
+      largo
+    >
+      {(p) => (
+        <div className="combo">
+          <div className="input-icon">
+            <Icon name="search" />
+            <input
+              {...p}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={aberto}
+              aria-controls={lista}
+              aria-activedescendant={
+                aberto && itens[ativo] ? `${lista}-${ativo}` : undefined
+              }
+              autoComplete="off"
+              maxLength={160}
+              placeholder={placeholder}
+              value={busca}
+              onFocus={() => setAberto(true)}
+              onClick={() => setAberto(true)}
+              onBlur={() => {
+                setAberto(false);
+                onBlur?.();
+              }}
+              onChange={(e) => {
+                onBusca(e.target.value);
+                if (selecionado) onSelecionar(null);
+                setAtivo(0);
+                setAberto(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setAberto(true);
+                  const passo = e.key === "ArrowDown" ? 1 : -1;
+                  setAtivo((a) =>
+                    itens.length
+                      ? (a + passo + itens.length) % itens.length
+                      : 0,
+                  );
+                } else if (e.key === "Enter" && aberto && itens[ativo]) {
+                  e.preventDefault();
+                  escolher(itens[ativo]);
+                } else if (e.key === "Escape" && aberto) {
+                  e.preventDefault();
+                  setAberto(false);
+                }
+              }}
+            />
+          </div>
+          {aberto && (
+            <ul
+              className="combo-list"
+              role="listbox"
+              id={lista}
+              aria-label={rotulo}
+            >
+              {opcoes === null ? (
+                <li className="combo-empty">Carregando…</li>
+              ) : !itens.length ? (
+                <li className="combo-empty">{vazio}</li>
+              ) : (
+                itens.map((o, i) => (
+                  <li
+                    key={o.id}
+                    id={`${lista}-${i}`}
+                    role="option"
+                    aria-selected={selecionado?.id === o.id}
+                    className={i === ativo ? "active" : undefined}
+                    // mousedown antes do blur do campo, para o clique valer.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setAtivo(i)}
+                    onClick={() => escolher(o)}
+                  >
+                    <span>{o.rotulo}</span>
+                    {o.detalhe && <small>{o.detalhe}</small>}
+                    {selecionado?.id === o.id && <Icon name="check" />}
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+    </ValidatedFormField>
+  );
+}
+
 /** Rodapé fixo com o que falta preencher e as ações do formulário. */
 export function FormFooter({
   faltam,
@@ -395,6 +534,16 @@ export function useTocados() {
 }
 
 export const soDigitos = (v: string) => v.replace(/\D/g, "");
+/** Valor guardado como "1234.50" (formato da API) e exibido como "R$ 1.234,50". */
+export const moedaExibida = (v: string | null | undefined) =>
+  v
+    ? Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    : "";
+/** Digitação estilo app de banco: os dígitos entram como centavos (12550 → 125.50). */
+export function moedaDigitada(texto: string, maxDigitos: number) {
+  const d = soDigitos(texto).replace(/^0+/, "").slice(0, maxDigitos);
+  return d ? (Number(d) / 100).toFixed(2) : "";
+}
 export function mascaraCpf(v: string) {
   const d = soDigitos(v).slice(0, 11);
   return d

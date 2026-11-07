@@ -74,11 +74,18 @@ def relatorio(request):
     formato = request.GET.get('formato', 'json')
     if formato == 'json':
         return JsonResponse(data)
-    if formato != 'xlsx':
+    if formato not in ('xlsx', 'pdf'):
         raise ValueError()
-    # Planilha sem relatos, nomes de alunos, documentos ou dados familiares.
-    response = HttpResponse(gerar(data),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    nome = f"relatorio-sgs-{data['inicio']:%d-%m-%Y}-a-{data['fim']:%d-%m-%Y}.xlsx"
+    # Lista das doações só para quem pode ver doações; canceladas não entram.
+    doacoes = (Doacao.objects.filter(cancelado=False, data__range=(data['inicio'], data['fim'])).order_by('-data', '-criado_em')
+               if data['doacoes'] is not None else None)
+    # Sem relatos, nomes de alunos, documentos ou dados familiares.
+    if formato == 'xlsx':
+        response = HttpResponse(gerar(data, doacoes),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    else:
+        from .relatorio_pdf import gerar_pdf
+        response = HttpResponse(gerar_pdf(data, doacoes), content_type='application/pdf')
+    nome = f"relatorio-sgs-{data['inicio']:%d-%m-%Y}-a-{data['fim']:%d-%m-%Y}.{formato}"
     response['Content-Disposition'] = f'attachment; filename="{nome}"'
     return response

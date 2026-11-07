@@ -9,7 +9,7 @@ from django.test import TestCase, TransactionTestCase, Client, skipUnlessDBFeatu
 from django.utils import timezone
 from alunos.models import Aluno
 from oficinas.models import Oficina, Matricula
-from .models import Chamada, Presenca, RevisaoChamada, ResponsavelTurma, HistoricoAcesso
+from .models import Chamada, Presenca, RevisaoChamada
 
 
 def oficina(nome='Esporte'):
@@ -153,7 +153,7 @@ class FrequenciaTests(TestCase):
         self.assertEqual(self.client.get('/api/frequencia/turmas/').json()['total'],0)
         self.assertEqual(self.client.get(self.path).status_code,404)
         self.assertEqual(self.post().status_code,404)
-        ResponsavelTurma.objects.create(oficina=self.o,usuario=educator)
+        Oficina.objects.filter(pk=self.o.pk).update(educador_usuario=educator)
         self.assertEqual(self.client.get('/api/frequencia/turmas/').json()['total'],1)
         self.assertEqual(self.post().status_code,201)
         item=self.client.get('/api/frequencia/turmas/').json()['items'][0]
@@ -163,25 +163,10 @@ class FrequenciaTests(TestCase):
         self.assertEqual(item['aula_hoje'],timezone.localdate().weekday() in self.o.dias_semana)
         self.assertEqual(self.client.get('/api/alunos/').status_code,403)
         self.assertEqual(self.client.get('/api/oficinas/').status_code,403)
-        self.assertEqual(self.client.get(self.base+'responsaveis/').status_code,403)
-        ResponsavelTurma.objects.all().delete()
+        self.assertEqual(self.client.get(self.base+'responsaveis/').status_code,404)
+        Oficina.objects.filter(pk=self.o.pk).update(educador_usuario=None)
         self.assertEqual(self.client.get(self.base+'historico/').status_code,404)
         self.assertEqual(self.client.put(self.path,self.payload(False,1,'Tentativa'),content_type='application/json').status_code,404)
-
-    def test_gestao_de_vinculos_rejeita_conta_invalida_e_conflito(self):
-        call_command('configurar_perfis',verbosity=0)
-        educator=User.objects.create_user('educador')
-        educator.groups.add(Group.objects.get(name='Educador'))
-        url=self.base+'responsaveis/'
-        data={'usuarios':[educator.pk],'anteriores':[]}
-        self.assertEqual(self.client.put(url,data,content_type='application/json').status_code,200)
-        self.assertEqual(HistoricoAcesso.objects.get().depois,[educator.pk])
-        self.assertEqual(self.client.put(url,data,content_type='application/json').status_code,409)
-        self.assertEqual(self.client.put(url,{'usuarios':[self.user.pk],'anteriores':[educator.pk]},content_type='application/json').status_code,400)
-        educator.is_active=False;educator.save()
-        self.assertFalse(self.client.get(url).json()['opcoes'][0]['disponivel'])
-        self.assertEqual(self.client.put(url,{'usuarios':[],'anteriores':[educator.pk]},content_type='application/json').status_code,200)
-        self.assertEqual(ResponsavelTurma.objects.count(),0)
 
     def test_perfil_de_consulta_csrf_e_anonimo(self):
         call_command('configurar_perfis',verbosity=0)
@@ -240,3 +225,23 @@ class ConcorrenciaFrequenciaTests(TransactionTestCase):
         Presenca.objects.create(chamada=c,matricula=self.m,nome_aluno='Aluno',presente=True)
         self.assertEqual(self.disputar('put',1),[200,409])
         self.assertEqual(Chamada.objects.get().versao,2)
+
+
+class MigracaoAcessoTests(TestCase):
+    def test_vinculo_unico_vira_educador_da_oficina(self):
+        from importlib import import_module
+        from django.apps import apps
+        from .models import ResponsavelTurma
+        migrar = import_module('oficinas.migrations.0002_educador_usuario').migrar_acesso
+        a, b = User.objects.create_user('ana', first_name='Ana', last_name='Lima'), User.objects.create_user('beto')
+        unica, dupla, sem = oficina('Unica'), oficina('Dupla'), oficina('Sem vinculo')
+        ResponsavelTurma.objects.create(oficina=unica, usuario=a)
+        ResponsavelTurma.objects.create(oficina=dupla, usuario=a)
+        ResponsavelTurma.objects.create(oficina=dupla, usuario=b)
+        migrar(apps, None)
+        for o in (unica, dupla, sem):
+            o.refresh_from_db()
+        self.assertEqual((unica.educador_usuario, unica.educador), (a, 'Ana Lima'))
+        # Com dois vínculos não há como saber quem é o responsável: fica para escolher na edição.
+        self.assertIsNone(dupla.educador_usuario)
+        self.assertIsNone(sem.educador_usuario)

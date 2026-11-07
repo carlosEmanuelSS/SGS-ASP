@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from alunos.models import Aluno
 from alunos.views import endpoint
-from .forms import OficinaForm
+from .forms import OficinaForm, educadores, nome_educador
 from .models import Oficina, Matricula, EventoOficina
 
 
@@ -17,8 +17,9 @@ def serialize(oficina):
     ocupadas = getattr(oficina, 'ocupadas', None)
     if ocupadas is None:
         ocupadas = oficina.matriculas.filter(ativa=True).count()
-    return {'id': str(oficina.pk), **{field: getattr(oficina, field) for field in OficinaForm.Meta.fields},
-            'versao': oficina.versao, 'ocupadas': ocupadas, 'disponiveis': oficina.limite_vagas - ocupadas}
+    campos = {field: getattr(oficina, field) for field in OficinaForm.Meta.fields if field != 'educador_usuario'}
+    return {'id': str(oficina.pk), **campos, 'educador': oficina.educador,
+            'educador_usuario': oficina.educador_usuario_id, 'versao': oficina.versao, 'ocupadas': ocupadas, 'disponiveis': oficina.limite_vagas - ocupadas}
 
 
 @endpoint(['GET', 'POST'], {'GET': 'oficinas.view_oficina', 'POST': 'oficinas.add_oficina'})
@@ -61,8 +62,10 @@ def salvar(request, oficina=None):
     if set(data) - set(OficinaForm.Meta.fields) - {'versao', 'motivo'}:
         return erro('O cadastro contém campos desconhecidos.')
     for field in OficinaForm.Meta.fields:
-        if field not in ('dias_semana', 'limite_vagas', 'ativa') and not isinstance(data.get(field, ''), str):
+        if field not in ('dias_semana', 'limite_vagas', 'ativa', 'educador_usuario') and not isinstance(data.get(field, ''), str):
             return erro('Formato de campo inválido.')
+    if data.get('educador_usuario') is not None and type(data['educador_usuario']) is not int:
+        return erro('Formato de campo inválido.')
     if type(data.get('ativa')) is not bool or type(data.get('limite_vagas')) is not int or not isinstance(data.get('dias_semana'), list):
         return erro('Informe situação, dias da semana e limite de vagas válidos.')
     motivo = data.get('motivo', '')
@@ -86,6 +89,7 @@ def salvar(request, oficina=None):
             if not form.is_valid():
                 return JsonResponse({'error': 'Revise os campos indicados.', 'fields': form.errors}, status=400)
             oficina = form.save(commit=False)
+            oficina.educador = nome_educador(oficina.educador_usuario)[:160]
             if not created:
                 oficina.versao += 1
             oficina.save()
@@ -94,6 +98,36 @@ def salvar(request, oficina=None):
     except IntegrityError:
         return erro('Já existe esta oficina e turma na unidade informada.', 409)
     return JsonResponse(serialize(oficina), status=201 if created else 200)
+
+
+@endpoint(['GET'], 'oficinas.change_oficina')
+def lista_educadores(request):
+    # Contas ativas do grupo Educador: as únicas que podem ser escolhidas na oficina.
+    lista = sorted(educadores(), key=lambda u: nome_educador(u).lower())
+    return JsonResponse({'items': [{'id': u.pk, 'nome': nome_educador(u), 'usuario': u.username} for u in lista]})
+
+
+@endpoint(['GET'], 'auth.view_user')
+def consulta_educadores(request):
+    # Consulta para administradores: contato, situação e oficinas de cada educador.
+    if not request.user.is_staff:
+        return erro('Somente administradores podem consultar educadores.', 403)
+    from django.contrib.auth import get_user_model
+    records = get_user_model().objects.filter(groups__name='Educador').distinct().select_related(
+        'perfil_educador').prefetch_related('oficinas_educador')
+    q = request.GET.get('q', '').strip()[:160]
+    if q:
+        records = records.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q)
+                                 | Q(username__icontains=q) | Q(email__icontains=q))
+    items = []
+    for u in sorted(records, key=lambda u: nome_educador(u).lower()):
+        perfil = getattr(u, 'perfil_educador', None)
+        items.append({'id': u.pk, 'nome': nome_educador(u), 'usuario': u.username, 'email': u.email,
+                      'ativo': u.is_active, 'telefone': perfil.telefone if perfil else '',
+                      'observacoes': perfil.observacoes if perfil else '',
+                      'oficinas': [{'id': str(o.pk), 'nome': o.nome, 'turma': o.turma, 'ativa': o.ativa}
+                                   for o in sorted(u.oficinas_educador.all(), key=lambda o: (o.nome, o.turma))]})
+    return JsonResponse({'items': items, 'total': len(items)})
 
 
 @endpoint(['GET'], 'oficinas.add_matricula')
