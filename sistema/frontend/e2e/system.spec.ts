@@ -126,6 +126,9 @@ test("fluxo real integrado: sigilo, auditoria, doações, relatórios, frequênc
   await expect(
     page.getByRole("heading", { name: /Para acessar o dashboard/ }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Abrir dashboard" }),
+  ).toHaveAttribute("href", "/api/dashboard/entrar/");
   await expect(page.locator(".report-toolbar")).toHaveCount(0);
   await page.screenshot({
     path: "test-results/relatorios-desktop.png",

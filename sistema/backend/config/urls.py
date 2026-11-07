@@ -5,6 +5,7 @@ from oficinas import views as oficinas
 from frequencia import views as frequencia
 from gestao import views as gestao
 from gestao.relatorios import relatorio
+from gestao.dashboard import entrar_dashboard
 from config.health import health
 
 urlpatterns = [
@@ -15,6 +16,7 @@ urlpatterns = [
     path('api/doacoes/exportar/', gestao.exportar_doacoes),
     path('api/doacoes/<uuid:pk>/', gestao.doacao),
     path('api/relatorios/', relatorio),
+    path('api/dashboard/entrar/', entrar_dashboard),
     path('api/senha/', views.alterar_senha),
     path('api/frequencia/turmas/', frequencia.turmas),
     path('api/frequencia/turmas/<uuid:pk>/chamada/', frequencia.chamada),

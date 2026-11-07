@@ -19,8 +19,8 @@ const atalhos: [string, () => string][] = [
  * atrás de um convite com o link; para mostrar de novo, troque para false.
  */
 const DASHBOARD_EXTERNO: boolean = true;
-/** Link do dashboard do outro grupo (ainda não definido). */
-const LINK_DASHBOARD: string = "";
+/** Rota do backend que gera o ingresso validador e abre o dashboard do outro grupo já logado. */
+const LINK_DASHBOARD: string = "/api/dashboard/entrar/";
 
 const dataBR = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 

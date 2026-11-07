@@ -345,3 +345,61 @@ class GestaoTests(TestCase):
             self.assertIn(trecho, r.content.decode('unicode_escape'), nova)
         self.tecnico.refresh_from_db()
         self.assertTrue(self.tecnico.check_password(atual))
+
+
+class EntradaDashboardTests(TestCase):
+    URL = '/api/dashboard/entrar/'
+    SEGREDO = 'chave-de-teste-com-mais-de-trinta-e-dois-caracteres'
+
+    def setUp(self):
+        call_command('configurar_perfis', verbosity=0)
+        self.client = Client()
+
+    def usuario(self, grupo, nome='pessoa'):
+        user = get_user_model().objects.create_user(nome, password='senha-forte-123', first_name='Ana', last_name='Lima')
+        if grupo:
+            user.groups.add(Group.objects.get(name=grupo))
+        self.client.force_login(user)
+        return user
+
+    def ingresso(self, resposta):
+        import jwt
+        destino, ticket = resposta['Location'].split('#ticket=')
+        self.assertEqual(destino, 'https://dash.exemplo/sso')
+        return jwt.decode(ticket, self.SEGREDO, algorithms=['HS256'], audience='asp-dashboard-sso', issuer='gestao-asp')
+
+    def test_sem_login_volta_para_inicio(self):
+        r = self.client.get(self.URL)
+        self.assertEqual((r.status_code, r['Location']), (302, '/'))
+
+    def test_sem_permissao_volta_para_inicio(self):
+        self.usuario('Educador')
+        r = self.client.get(self.URL)
+        self.assertEqual((r.status_code, r['Location']), (302, '/'))
+
+    def test_sem_configuracao_responde_503(self):
+        self.usuario('Secretaria')
+        with self.settings(DASHBOARD_SSO_SEGREDO='', DASHBOARD_URL='https://dash.exemplo'):
+            self.assertEqual(self.client.get(self.URL).status_code, 503)
+
+    def test_secretaria_recebe_ingresso_de_analista(self):
+        user = self.usuario('Secretaria')
+        with self.settings(DASHBOARD_SSO_SEGREDO=self.SEGREDO, DASHBOARD_URL='https://dash.exemplo/'):
+            r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn('no-store', r['Cache-Control'])
+        dados = self.ingresso(r)
+        self.assertEqual((dados['sub'], dados['nome'], dados['papeis']), (str(user.pk), 'Ana Lima', ['analista']))
+        self.assertEqual(dados['exp'] - dados['iat'], 60)
+        self.assertEqual(len(dados['jti']), 32)
+
+    def test_coordenacao_ganha_papel_pedagogico_e_jti_muda(self):
+        self.usuario('Coordenação')
+        with self.settings(DASHBOARD_SSO_SEGREDO=self.SEGREDO, DASHBOARD_URL='https://dash.exemplo'):
+            a, b = self.ingresso(self.client.get(self.URL)), self.ingresso(self.client.get(self.URL))
+        self.assertEqual(a['papeis'], ['analista', 'coordenacao_pedagogica'])
+        self.assertNotEqual(a['jti'], b['jti'])
+
+    def test_so_aceita_get(self):
+        self.usuario('Secretaria')
+        self.assertEqual(self.client.post(self.URL).status_code, 405)

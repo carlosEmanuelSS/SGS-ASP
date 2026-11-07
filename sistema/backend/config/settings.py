@@ -81,6 +81,9 @@ STORAGES = {
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 X_FRAME_OPTIONS = 'DENY'
+# Entrada no dashboard do outro grupo (ingresso validador). A chave fica só no painel do Render.
+DASHBOARD_SSO_SEGREDO = os.environ.get('DASHBOARD_SSO_SEGREDO', '')
+DASHBOARD_URL = os.environ.get('DASHBOARD_URL', '')
 SECURE_REFERRER_POLICY = 'same-origin'
 if os.environ.get('TRUST_PROXY_HEADERS', 'false').lower() == 'true':
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
