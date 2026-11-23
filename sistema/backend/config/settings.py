@@ -2,6 +2,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
+from config.banco import banco_da_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = os.environ.get('DJANGO_DEBUG', 'false').lower() == 'true'
@@ -11,9 +12,13 @@ if not SECRET_KEY:
         raise ImproperlyConfigured('Defina DJANGO_SECRET_KEY ou DJANGO_DEBUG=true para desenvolvimento.')
     SECRET_KEY = 'development-only-never-use-in-production-sgs-asp'
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# O Render informa o domínio público do serviço (ex.: gestao-asp.onrender.com).
+RENDER_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
+if RENDER_HOST:
+    ALLOWED_HOSTS.append(RENDER_HOST)
 if not DEBUG and (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5 or SECRET_KEY.startswith('development-')):
     raise ImproperlyConfigured('Use uma DJANGO_SECRET_KEY aleatória com pelo menos 50 caracteres.')
-if not DEBUG and ('*' in ALLOWED_HOSTS or not os.environ.get('DJANGO_ALLOWED_HOSTS')):
+if not DEBUG and ('*' in ALLOWED_HOSTS or not (os.environ.get('DJANGO_ALLOWED_HOSTS') or RENDER_HOST)):
     raise ImproperlyConfigured('Defina explicitamente os hosts permitidos, sem curinga.')
 INSTALLED_APPS = [
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
@@ -32,7 +37,9 @@ TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIR
               'OPTIONS': {'context_processors': ['django.template.context_processors.request',
                'django.contrib.auth.context_processors.auth', 'django.contrib.messages.context_processors.messages']}}]
 WSGI_APPLICATION = 'config.wsgi.application'
-if os.environ.get('POSTGRES_HOST'):
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {'default': banco_da_url(os.environ['DATABASE_URL'])}
+elif os.environ.get('POSTGRES_HOST'):
     DATABASES = {'default': {'ENGINE': 'django.db.backends.postgresql',
         'HOST': os.environ['POSTGRES_HOST'], 'PORT': os.environ.get('POSTGRES_PORT', '5432'),
         'NAME': os.environ.get('POSTGRES_DB', 'sgs'), 'USER': os.environ.get('POSTGRES_USER', 'sgs'),
@@ -60,6 +67,8 @@ SESSION_COOKIE_AGE = 28800
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_TRUSTED_ORIGINS = list(filter(None, os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')))
+if RENDER_HOST:
+    CSRF_TRUSTED_ORIGINS.append('https://' + RENDER_HOST)
 SECURE_SSL_REDIRECT = not DEBUG
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True

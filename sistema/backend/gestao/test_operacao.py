@@ -95,3 +95,18 @@ class ConcorrenciaAtendimentoTests(TransactionTestCase):
         obj.refresh_from_db()
         self.assertEqual(obj.versao, 2)
         self.assertEqual(obj.revisoes.count(), 1)
+
+
+class BancoDaUrlTests(SimpleTestCase):
+    def test_url_do_neon(self):
+        from config.banco import banco_da_url
+        db = banco_da_url('postgresql://sgs:s%40nha@ep-x.sa-east-1.aws.neon.tech/neondb?sslmode=require')
+        self.assertEqual((db['HOST'], db['PORT'], db['NAME'], db['USER'], db['PASSWORD']),
+                         ('ep-x.sa-east-1.aws.neon.tech', '5432', 'neondb', 'sgs', 's@nha'))
+        self.assertEqual(db['OPTIONS'], {'sslmode': 'require'})
+
+    def test_url_invalida(self):
+        from config.banco import banco_da_url
+        for url in ['mysql://u:p@h/db', 'postgresql://u:p@h', 'texto qualquer']:
+            with self.assertRaises(ValueError):
+                banco_da_url(url)

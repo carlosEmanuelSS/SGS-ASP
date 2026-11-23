@@ -1,0 +1,29 @@
+# Blueprint do Render: um serviço web (API + telas) usando o Dockerfile do projeto.
+# O banco fica no Neon; cole a URL de conexão em DATABASE_URL no painel do Render.
+services:
+  - type: web
+    name: gestao-asp
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    dockerCommand: sh render-start.sh
+    healthCheckPath: /healthz/
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      - key: SGS_CHAVE_1
+        generateValue: true
+      - key: SGS_CHAVE_2
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: PORT
+        value: "8000"
